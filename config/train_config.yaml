@@ -1,0 +1,15 @@
+# 학습 설정
+data_path: 'data/processed/traffic_data.pkl'
+train_ratio: 0.7
+val_ratio: 0.1
+window_size: 12
+hidden_dim: 64
+num_layers: 3
+dropout: 0.2
+learning_rate: 0.001
+batch_size: 32
+epochs: 100
+patience: 10
+gat_heads: 8
+model_dir: 'experiments/models'
+result_dir: 'experiments/results' 
