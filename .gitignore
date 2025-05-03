@@ -172,5 +172,8 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
-data/processed/
-data/raw/
+
+# Custom
+/datasets/*
+!/datasets/prepare_traffic_datasets.py
+!/datasets/save_masked_data.py
