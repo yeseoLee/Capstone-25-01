@@ -18,9 +18,8 @@ import pandas as pd
 # 라이브러리 경로 추가
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from lib import datasets_path
+from lib import datasets, datasets_path
 from lib.data.imputation_dataset import GraphImputationDataset, ImputationDataset
-from scripts.run_imputation import get_dataset
 
 
 def parse_args():
@@ -128,6 +127,20 @@ def copy_auxiliary_files(dataset_name, original_dir, output_dir):
             if os.path.exists(os.path.join(original_dir, file)):
                 shutil.copy2(os.path.join(original_dir, file), os.path.join(output_dir, file))
                 print(f"보조 파일 {file}이 복사되었습니다.")
+
+
+def get_dataset(dataset_name):
+    if dataset_name == "bay_block":
+        dataset = datasets.MissingValuesPemsBay()
+    elif dataset_name == "la_block":
+        dataset = datasets.MissingValuesMetrLA()
+    elif dataset_name == "la_point":
+        dataset = datasets.MissingValuesMetrLA(p_fault=0.0, p_noise=0.25)
+    elif dataset_name == "bay_point":
+        dataset = datasets.MissingValuesPemsBay(p_fault=0.0, p_noise=0.25)
+    else:
+        raise ValueError(f"Dataset {dataset_name} not available in this setting.")
+    return dataset
 
 
 def main():
