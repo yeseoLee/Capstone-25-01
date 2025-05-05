@@ -1,32 +1,26 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
 """
-결측치가 있는 원본 데이터와 마스킹된 데이터를 함께 저장하는 스크립트
+데이터셋에 결측치(마스킹)를 생성하고, 저장하는 스크립트
 
 사용법:
-    python save_masked_data.py --dataset_name bay_block --output_dir ./datasets/masked
-
-이 스크립트는 원본 데이터셋을 로드하고, 결측치를 생성한 다음,
-원본 데이터셋 형태(.h5 또는 .csv)로 다시 저장합니다.
+    python ./datasets/save_masked_data.py --dataset_name bay_block --output_dir ./datasets/masked
 """
 
-import os
 import argparse
-import numpy as np
-import torch
-import pandas as pd
+import os
 from pathlib import Path
-import sys
-import h5py
 import shutil
+import sys
+
+import numpy as np
+import pandas as pd
+
 
 # 라이브러리 경로 추가
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+from lib import datasets_path
 from lib.data.imputation_dataset import GraphImputationDataset, ImputationDataset
 from scripts.run_imputation import get_dataset
-from lib import datasets_path
 
 
 def parse_args():
@@ -149,8 +143,8 @@ def main():
 
         # 데이터셋 정보 확인
         original_df = dataset.dataframe()
-        mask = dataset.mask
-        eval_mask = dataset.eval_mask
+        # mask = dataset.mask
+        # eval_mask = dataset.eval_mask
 
         # 출력 디렉토리 생성
         output_base_dir = Path(args.output_dir)
@@ -166,13 +160,13 @@ def main():
         # 데이터셋 형식에 맞게 저장
         if "bay" in args.dataset_name:
             # PemsBay 데이터셋은 h5 형식으로 저장
-            save_h5_dataset(masked_df, os.path.join(dataset_output_dir, f"pems_bay_masked.h5"))
+            save_h5_dataset(masked_df, os.path.join(dataset_output_dir, "pems_bay_masked.h5"))
             # 보조 파일 복사
             copy_auxiliary_files(args.dataset_name, datasets_path["bay"], dataset_output_dir)
 
         elif "la" in args.dataset_name:
             # MetrLA 데이터셋은 h5 형식으로 저장
-            save_h5_dataset(masked_df, os.path.join(dataset_output_dir, f"metr_la_masked.h5"))
+            save_h5_dataset(masked_df, os.path.join(dataset_output_dir, "metr_la_masked.h5"))
             # 보조 파일 복사
             copy_auxiliary_files(args.dataset_name, datasets_path["la"], dataset_output_dir)
 

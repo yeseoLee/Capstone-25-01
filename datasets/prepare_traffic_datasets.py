@@ -1,3 +1,10 @@
+"""
+METR-LA와 PEMS-BAY 데이터셋을 다운로드하고, 파일을 추출하는 스크립트
+
+사용법:
+    python ./datasets/prepare_traffic_datasets.py --datasets metr_la pems_bay
+"""
+
 import argparse
 import os
 
