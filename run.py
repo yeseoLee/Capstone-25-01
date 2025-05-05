@@ -9,7 +9,7 @@ import yaml
 sys.path.append(str(Path(__file__).parent.absolute()))
 
 # 각 모듈 임포트
-from data.generate_data import main as generate_data_main
+from datasets.prepare_datasets import main as prepare_datasets_main
 from experiments.evaluate import main as evaluate_main
 from experiments.train import main as train_main
 
@@ -29,10 +29,16 @@ def config_to_args(config):
     return args
 
 
-def generate_data():
-    """데이터 생성"""
-    print("데이터 생성 중...")
-    generate_data_main()
+def prepare_datasets():
+    """데이터셋 준비"""
+    print("데이터셋 준비 중...")
+
+    # 설정 파일 로드
+    config = load_config("config/dataset_config.yaml")
+    dataset_args = config_to_args(config)
+
+    # 데이터셋 준비
+    prepare_datasets_main(dataset_args)
 
 
 def train_models(args):
@@ -77,7 +83,7 @@ def run_all(args):
 
     # 1. 데이터 생성
     print("\n1. 데이터 생성 중...")
-    generate_data()
+    prepare_datasets()
 
     # 2. 모델 학습
     print("\n2. 모델 학습 중...")
@@ -95,8 +101,8 @@ def main(args):
         args: 명령행 인자
     """
     # 명령에 따라 적절한 스크립트 실행
-    if args.command == "generate":
-        generate_data()
+    if args.command == "dataset":
+        prepare_datasets()
     elif args.command == "train":
         train_models(args)
     elif args.command == "evaluate":
@@ -105,7 +111,7 @@ def main(args):
         run_all(args)
     else:
         print(f"알 수 없는 명령: {args.command}")
-        print("사용 가능한 명령: generate, train, evaluate, all")
+        print("사용 가능한 명령: dataset, train, evaluate, all")
 
 
 if __name__ == "__main__":
@@ -115,8 +121,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "command",
         type=str,
-        choices=["generate", "train", "evaluate", "all"],
-        help="실행할 명령 (generate, train, evaluate, all)",
+        choices=["dataset", "train", "evaluate", "all"],
+        help="실행할 명령 (dataset, train, evaluate, all)",
     )
 
     # 학습 관련 인자
@@ -133,7 +139,7 @@ if __name__ == "__main__":
     current_dir = Path(__file__).parent.absolute()
 
     # 현재 디렉토리가 프로젝트 루트가 아니라면 경고
-    if not (current_dir / "data").exists() or not (current_dir / "models").exists():
+    if not (current_dir / "datasets").exists() or not (current_dir / "models").exists():
         print("경고: 프로젝트 루트 디렉토리에서 실행해주세요.")
 
     main(args)
@@ -144,6 +150,7 @@ if __name__ == "__main__":
 python run.py all
 
 # 또는 단계별 실행
-python run.py generate
+python run.py dataset
 python run.py train --epochs 50 --batch_size 64
+python run.py evaluate
 """

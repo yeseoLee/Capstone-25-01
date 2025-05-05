@@ -2,7 +2,7 @@
 METR-LA와 PEMS-BAY 데이터셋을 다운로드하고, 파일을 추출하는 스크립트
 
 사용법:
-    python ./datasets/prepare_traffic_datasets.py --datasets metr_la pems_bay
+    python ./datasets/prepare_datasets.py --datasets metr_la pems_bay
 """
 
 import argparse
@@ -99,27 +99,7 @@ def extract_files(datasets):
     print("모든 파일 추출 작업이 완료되었습니다.")
 
 
-def main():
-    parser = argparse.ArgumentParser(description="교통 데이터셋(METR-LA, PEMS-BAY) 준비 도구")
-    parser.add_argument(
-        "--datasets",
-        nargs="+",
-        default=["metr_la", "pems_bay"],
-        help="처리할 데이터셋 ('metr_la', 'pems_bay' 또는 둘 다)",
-    )
-    parser.add_argument(
-        "--download-only",
-        action="store_true",
-        help="데이터셋만 다운로드하고 파일 추출은 하지 않음",
-    )
-    parser.add_argument(
-        "--extract-only",
-        action="store_true",
-        help="파일 추출만 수행하고 데이터셋 다운로드는 하지 않음",
-    )
-
-    args = parser.parse_args()
-
+def main(args):
     # 유효한 데이터셋 이름인지 확인
     valid_datasets = ["metr_la", "pems_bay"]
     datasets = [d for d in args.datasets if d in valid_datasets]
@@ -140,4 +120,22 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="교통 데이터셋(METR-LA, PEMS-BAY) 준비 도구")
+    parser.add_argument(
+        "--datasets",
+        nargs="+",
+        default=["metr_la", "pems_bay"],
+        help="처리할 데이터셋 ('metr_la', 'pems_bay' 또는 둘 다)",
+    )
+    parser.add_argument(
+        "--download-only",
+        action="store_true",
+        help="데이터셋만 다운로드하고 파일 추출은 하지 않음",
+    )
+    parser.add_argument(
+        "--extract-only",
+        action="store_true",
+        help="파일 추출만 수행하고 데이터셋 다운로드는 하지 않음",
+    )
+    args = parser.parse_args()
+    main(args)
