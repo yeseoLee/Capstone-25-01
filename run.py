@@ -1,17 +1,10 @@
 import argparse
 from pathlib import Path
-import sys
 
 import yaml
 
-
-# 상위 디렉토리 추가
-sys.path.append(str(Path(__file__).parent.absolute()))
-
-# 각 모듈 임포트
-from datasets.prepare_datasets import main as prepare_datasets_main
-from experiments.evaluate import main as evaluate_main
-from experiments.train import main as train_main
+from .datasets.prepare_datasets import main as prepare_datasets_main
+from .experiments import do_evaluate, do_train
 
 
 def load_config(config_file):
@@ -58,7 +51,7 @@ def train_models(args):
         train_args.learning_rate = args.learning_rate
 
     # 학습 실행
-    train_main(train_args)
+    do_train(train_args)
 
 
 def evaluate_models(args):
@@ -74,7 +67,7 @@ def evaluate_models(args):
         eval_args.cpu = args.cpu
 
     # 평가 실행
-    evaluate_main(eval_args)
+    do_evaluate(eval_args)
 
 
 def run_all(args):

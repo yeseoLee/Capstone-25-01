@@ -1,18 +1,13 @@
 import argparse
 import os
-import sys
 
 import torch
 
-
-# 상위 디렉토리 추가
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from models import (
+from ..models import (
     GCNMI,  # 결측치 보간 모델
     GCNODE,  # 이상치 보간 모델
 )
-from utils import (
+from ..utils import (
     create_dataloader,
     create_torch_dataset,
     load_dataset,
@@ -122,7 +117,7 @@ def train_missing_model(train_data, val_data, args):
     return gcnmi
 
 
-def main(args):
+def do_train(args):
     """
     메인 함수
     Args:
@@ -182,4 +177,4 @@ if __name__ == "__main__":
     # 인자 파싱
     args = parser.parse_args()
 
-    main(args)
+    do_train(args)

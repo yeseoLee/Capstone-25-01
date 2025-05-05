@@ -325,7 +325,7 @@ def evaluate_pipelines(test_data, missing_model, outlier_model, result_dir, devi
     return metrics_dict
 
 
-def main(args):
+def do_evaluate(args):
     """
     메인 함수
     Args:
@@ -382,4 +382,4 @@ if __name__ == "__main__":
     # 인자 파싱
     args = parser.parse_args()
 
-    main(args)
+    do_evaluate(args)
