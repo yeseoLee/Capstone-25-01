@@ -86,44 +86,54 @@ class TempFillPipeline(ImputationPipeline):
             temp_values: 임시 대체 값
         """
         if self.temp_value_type == "zero":
-            return np.zeros_like(data)
-
+            return self._get_zero_values(data)
         elif self.temp_value_type == "mean":
-            # 각 노드별 평균 계산 (결측치 제외)
-            node_means = np.zeros(data.shape[0])
-            for i in range(data.shape[0]):
-                valid_data = data[i, ~missing_mask[i]]
-                node_means[i] = valid_data.mean() if len(valid_data) > 0 else 0
-
-            # 평균값으로 대체
-            temp_values = np.tile(node_means.reshape(-1, 1), (1, data.shape[1]))
-            return temp_values
-
+            return self._get_mean_values(data, missing_mask)
         elif self.temp_value_type == "neighbor":
-            # 각 결측치에 대해 이웃 값의 평균 계산
-            temp_values = np.copy(data)
-            for i in range(data.shape[0]):
-                for j in range(data.shape[1]):
-                    if missing_mask[i, j]:
-                        neighbors = []
-                        # 이전 값
-                        if j > 0 and not missing_mask[i, j - 1]:
-                            neighbors.append(data[i, j - 1])
-                        # 다음 값
-                        if j < data.shape[1] - 1 and not missing_mask[i, j + 1]:
-                            neighbors.append(data[i, j + 1])
-
-                        if neighbors:
-                            temp_values[i, j] = np.mean(neighbors)
-                        else:
-                            # 이웃 값이 없으면 해당 노드의 평균 사용
-                            valid_data = data[i, ~missing_mask[i]]
-                            temp_values[i, j] = valid_data.mean() if len(valid_data) > 0 else 0
-
-            return temp_values
-
+            return self._get_neighbor_values(data, missing_mask)
         else:
             raise ValueError(f"지원하지 않는 임시 대체 값 유형: {self.temp_value_type}")
+
+    def _get_zero_values(self, data):
+        """영(0) 값으로 대체"""
+        return np.zeros_like(data)
+
+    def _get_mean_values(self, data, missing_mask):
+        """각 노드의 평균값으로 대체"""
+        # 각 노드별 평균 계산 (결측치 제외)
+        node_means = np.zeros(data.shape[0])
+        for i in range(data.shape[0]):
+            valid_data = data[i, ~missing_mask[i]]
+            node_means[i] = valid_data.mean() if len(valid_data) > 0 else 0
+
+        # 평균값으로 대체
+        return np.tile(node_means.reshape(-1, 1), (1, data.shape[1]))
+
+    def _get_neighbor_values(self, data, missing_mask):
+        """이웃 값의 평균으로 대체"""
+        temp_values = np.copy(data)
+        for i in range(data.shape[0]):
+            for j in range(data.shape[1]):
+                if missing_mask[i, j]:
+                    temp_values[i, j] = self._calculate_neighbor_value(data, missing_mask, i, j)
+        return temp_values
+
+    def _calculate_neighbor_value(self, data, missing_mask, i, j):
+        """특정 위치의 이웃 값 계산"""
+        neighbors = []
+        # 이전 값
+        if j > 0 and not missing_mask[i, j - 1]:
+            neighbors.append(data[i, j - 1])
+        # 다음 값
+        if j < data.shape[1] - 1 and not missing_mask[i, j + 1]:
+            neighbors.append(data[i, j + 1])
+
+        if neighbors:
+            return np.mean(neighbors)
+
+        # 이웃 값이 없으면 해당 노드의 평균 사용
+        valid_data = data[i, ~missing_mask[i]]
+        return valid_data.mean() if len(valid_data) > 0 else 0
 
     def impute(self, data_dict):
         """
