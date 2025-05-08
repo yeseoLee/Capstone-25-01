@@ -2,19 +2,19 @@
 데이터셋에 이상치를 생성하고, 저장하는 스크립트
 
 사용법:
-    python ./datasets/process_outliers.py --dataset_name bay_block --output_dir ./datasets/processed/outliers --scenario point
+    python ./datasets/process_outliers.py
+    --dataset_name bay_block
+    --output_dir ./datasets/processed/outliers
+    --scenario point
 """
 
 import argparse
 import os
 from pathlib import Path
 import shutil
-from datetime import datetime, timedelta
 
 import numpy as np
 import pandas as pd
-import torch
-from torch.utils.data import Dataset
 
 
 # 데이터셋 경로 정의
@@ -328,9 +328,13 @@ def main(args):
         # 데이터셋별 출력 디렉토리 생성 - 시나리오와 파라미터 값을 폴더명에 포함
         folder_name = f"{args.dataset_name}_{args.scenario}"
         if args.scenario == "point":
-            folder_name += f"_dev{args.min_deviation}-{args.max_deviation}_p{args.p_outlier:.3f}"
+            folder_name += f"_dev{args.min_deviation}-{args.max_deviation}_" f"p{args.p_outlier:.3f}"
         elif args.scenario == "collective":
-            folder_name += f"_dev{args.min_deviation}-{args.max_deviation}_dur{args.min_duration}-{args.max_duration}_p{args.p_outlier:.3f}"
+            folder_name += (
+                f"_dev{args.min_deviation}-{args.max_deviation}_"
+                f"dur{args.min_duration}-{args.max_duration}_"
+                f"p{args.p_outlier:.3f}"
+            )
 
         dataset_output_dir = output_base_dir / folder_name
         dataset_output_dir.mkdir(exist_ok=True)
