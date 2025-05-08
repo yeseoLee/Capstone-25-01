@@ -173,7 +173,8 @@ cython_debug/
 .pypirc
 
 # Custom
-/datasets/*
-!/datasets/prepare_datasets.py
-!/datasets/process_masking.py
+/datasets/metr_la/
+/datasets/pems_bay/
+/datasets/processed/
+
 .DS_Store

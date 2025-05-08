@@ -2,7 +2,7 @@
 데이터셋에 결측치(마스킹)를 생성하고, 저장하는 스크립트
 
 사용법:
-    python ./datasets/process_masking.py --dataset_name bay_block --output_dir ./datasets/masked
+    python ./datasets/process_masking.py --dataset_name bay_block --output_dir ./datasets/processed/masked
 """
 
 import argparse
