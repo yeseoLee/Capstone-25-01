@@ -25,5 +25,3 @@ dependencies:
       - "git+https://github.com/yeseoLee/tsl.git@main#egg=torch-spatiotemporal"
       # - torch_sparse
       # - torch_scatter
-      # - torch_cluster
-      # - torch_spline_conv
