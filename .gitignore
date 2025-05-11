@@ -173,8 +173,10 @@ cython_debug/
 .pypirc
 
 # Custom
+.DS_Store
 /datasets/metr_la/
 /datasets/pems_bay/
 /datasets/processed/
+STGAN/bay/
+SPIN/log/
 
-.DS_Store
