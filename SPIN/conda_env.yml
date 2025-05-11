@@ -27,4 +27,3 @@ dependencies:
       - torch_scatter
       - torch_cluster
       - torch_spline_conv
-      - torchmetrics==0.6.2
