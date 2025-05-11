@@ -5,6 +5,9 @@ root: 'log'
 #dataset_name: [bay_point, bay_bock]
 #model_name: [spin, spin_h, grin]
 #exp_name: {exp_name}
+dataset_name: bay_point
+model_name: spin_h
+exp_name: 20250511T151035_360107715
 
 #### Data params ##############################################################
 p_fault: 0
