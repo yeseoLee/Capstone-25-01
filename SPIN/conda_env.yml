@@ -21,7 +21,7 @@ dependencies:
       - pytorch-lightning==1.5
       - scikit-learn
       - pandas==1.4.4
-      - "git+https://github.com/yeseoLee/tsl.git@main#egg=tsl"
+      - "git+https://github.com/yeseoLee/tsl.git@main#egg=torch-spatiotemporal"
       # - torch_spatiotemporal==0.1.1
       - torch_sparse
       - torch_scatter
