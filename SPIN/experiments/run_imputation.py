@@ -78,9 +78,9 @@ def parse_args():
 
     parser.add_argument("--seed", type=int, default=-1)
     parser.add_argument("--precision", type=int, default=32)
-    parser.add_argument("--model-name", type=str, default="spin-h")
+    parser.add_argument("--model-name", type=str, default="spin_h")
     parser.add_argument("--dataset-name", type=str, default="bay_block")
-    parser.add_argument("--config", type=str, default="imputation/spin.yaml")
+    parser.add_argument("--config", type=str, default="imputation/spin_h.yaml")
 
     # Splitting/aggregation params
     parser.add_argument("--val-len", type=float, default=0.1)
