@@ -8,7 +8,6 @@ from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
 from spin.imputers import SPINImputer
 from spin.models import SPINHierarchicalModel, SPINModel
-from spin.scheduler import CosineSchedulerWithRestarts
 import torch
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from tsl import config, logger
@@ -59,15 +58,15 @@ def get_scheduler(scheduler_name: str = None, args=None):
     if scheduler_name == "cosine":
         scheduler_class = CosineAnnealingLR
         scheduler_kwargs = {"eta_min": 0.1 * args.lr, "T_max": args.epochs}
-    elif scheduler_name == "magic":
-        scheduler_class = CosineSchedulerWithRestarts
-        scheduler_kwargs = {
-            "num_warmup_steps": 12,
-            "min_factor": 0.1,
-            "linear_decay": 0.67,
-            "num_training_steps": args.epochs,
-            "num_cycles": args.epochs // 100,
-        }
+    # elif scheduler_name == "magic":
+    #     scheduler_class = CosineSchedulerWithRestarts
+    #     scheduler_kwargs = {
+    #         "num_warmup_steps": 12,
+    #         "min_factor": 0.1,
+    #         "linear_decay": 0.67,
+    #         "num_training_steps": args.epochs,
+    #         "num_cycles": args.epochs // 100,
+    #     }
     else:
         raise ValueError(f"Invalid scheduler name: {scheduler_name}.")
     return scheduler_class, scheduler_kwargs
@@ -227,8 +226,8 @@ def run_experiment(args):
         optim_kwargs={"lr": args.lr, "weight_decay": args.l2_reg},
         loss_fn=loss_fn,
         metrics=metrics,
-        scheduler_class=scheduler_class,
-        scheduler_kwargs=scheduler_kwargs,
+        # scheduler_class=scheduler_class,
+        # scheduler_kwargs=scheduler_kwargs,
         **imputer_kwargs,
     )
 

@@ -1,7 +1,8 @@
 ##########################        GRIN CONFIG        ##########################
 
 #### Dataset params ###########################################################
-#dataset_name: [la_point, bay_point, la_bock, bay_bock, air, air36]
+#dataset_name: [bay_point, bay_bock]
+dataset_name: bay_point
 val_len: 0.1
 
 window: 24  # [24, 36]

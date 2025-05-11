@@ -18,7 +18,7 @@ dependencies:
   - pytables
   - pip:
       - einops
-      - pytorch-lightning>=1.5
+      - pytorch-lightning==1.5
       - scikit-learn
       - pandas
       - torch_spatiotemporal==0.1.1
