@@ -18,7 +18,8 @@ import pandas as pd
 
 
 # 데이터셋 경로 정의
-datasets_path = {"bay": "./datasets/pems_bay", "la": "./datasets/metr_la"}
+datasets_path = {"bay": "./datasets/pems_bay"}
+stgan_path = "./datasets/stgan/pems_bay/data"
 
 
 class OutlierGenerator:
@@ -257,6 +258,44 @@ def save_h5_dataset(df, output_file):
     print(f"HDF5 데이터가 {output_file}에 저장되었습니다.")
 
 
+def save_stgan_format(outlier_values, output_dir):
+    """
+    이상치가 포함된 데이터를 STGAN 형식으로 저장합니다.
+
+    Args:
+        outlier_values: 이상치가 포함된 데이터값 (2D 배열)
+        output_dir: 출력 디렉토리 경로
+    """
+    try:
+        # 원본 STGAN 데이터 로드
+        original_data = np.load(os.path.join(stgan_path, "data.npy"))
+
+        # 이상치가 포함된 데이터로 STGAN 형식 데이터 생성
+        outlier_data = original_data.copy()
+
+        # 2D 데이터를 4D로 변환
+        for i in range(outlier_values.shape[0]):
+            for j in range(outlier_values.shape[1]):
+                # 값 복사 (속도와 흐름 모두 동일한 값 사용)
+                outlier_data[i, j, 0, 0] = outlier_values[i, j]
+                outlier_data[i, j, 0, 1] = outlier_values[i, j]
+
+        # STGAN 형식으로 저장
+        np.save(os.path.join(output_dir, "data.npy"), outlier_data)
+
+        # 필요한 보조 파일 복사
+        for file in ["time_features.txt", "node_subgraph.npy", "node_adjacent.txt", "node_dist.txt"]:
+            src_file = os.path.join(stgan_path, file)
+            dst_file = os.path.join(output_dir, file)
+            if os.path.exists(src_file):
+                shutil.copy2(src_file, dst_file)
+
+        print(f"STGAN 형식 데이터가 {output_dir}에 저장되었습니다.")
+
+    except FileNotFoundError:
+        print("원본 STGAN 형식 데이터를 찾을 수 없습니다. 먼저 prepare_datasets.py를 실행하세요.")
+
+
 def copy_auxiliary_files(dataset_name, original_dir, output_dir):
     """
     필요한 보조 파일(예: 거리 행렬, 센서 ID 등)을 복사합니다.
@@ -266,21 +305,12 @@ def copy_auxiliary_files(dataset_name, original_dir, output_dir):
         original_dir: 원본 데이터 디렉토리
         output_dir: 출력 디렉토리
     """
-    if "bay" in dataset_name:
-        # PemsBay 데이터셋의 보조 파일 복사
-        files_to_copy = ["pems_bay_dist.npy", "distances_bay.csv"]
-        for file in files_to_copy:
-            if os.path.exists(os.path.join(original_dir, file)):
-                shutil.copy2(os.path.join(original_dir, file), os.path.join(output_dir, file))
-                print(f"보조 파일 {file}이 복사되었습니다.")
-
-    elif "la" in dataset_name:
-        # MetrLA 데이터셋의 보조 파일 복사
-        files_to_copy = ["metr_la_dist.npy", "distances_la.csv", "sensor_ids_la.txt"]
-        for file in files_to_copy:
-            if os.path.exists(os.path.join(original_dir, file)):
-                shutil.copy2(os.path.join(original_dir, file), os.path.join(output_dir, file))
-                print(f"보조 파일 {file}이 복사되었습니다.")
+    # PemsBay 데이터셋의 보조 파일 복사
+    files_to_copy = ["pems_bay_dist.npy", "distances_bay.csv"]
+    for file in files_to_copy:
+        if os.path.exists(os.path.join(original_dir, file)):
+            shutil.copy2(os.path.join(original_dir, file), os.path.join(output_dir, file))
+            print(f"보조 파일 {file}이 복사되었습니다.")
 
 
 def get_outlier_generator(df, scenario, **kwargs):
@@ -313,13 +343,18 @@ def main(args):
         # 데이터셋 로드
         print(f"데이터셋 '{args.dataset_name}' 로드 중...")
 
-        # 데이터셋 파일 경로
-        if "bay" in args.dataset_name:
+        # 데이터 로드 방식 결정
+        try:
+            # STGAN 형식 데이터 로드 시도
+            stgan_data = np.load(os.path.join(stgan_path, "data.npy"))
+            # (num_timestamps, num_nodes, 1, 2) -> (num_timestamps, num_nodes) 형태로 변환
+            data = stgan_data[:, :, 0, 0]  # 첫 번째 특성(속도)만 사용
+            df = pd.DataFrame(data)
+            print("STGAN 형식 데이터로부터 로드했습니다.")
+        except (FileNotFoundError, ValueError):
+            # 기존 방식으로 데이터 로드
             df = pd.read_hdf(os.path.join(datasets_path["bay"], "pems_bay.h5"))
-        elif "la" in args.dataset_name:
-            df = pd.read_hdf(os.path.join(datasets_path["la"], "metr_la.h5"))
-        else:
-            raise ValueError(f"지원하지 않는 데이터셋: {args.dataset_name}")
+            print("H5 형식 데이터로부터 로드했습니다.")
 
         # 출력 디렉토리 생성
         output_base_dir = Path(args.output_dir)
@@ -338,6 +373,10 @@ def main(args):
 
         dataset_output_dir = output_base_dir / folder_name
         dataset_output_dir.mkdir(exist_ok=True)
+
+        # STGAN 형식 출력 디렉토리 생성
+        stgan_output_dir = output_base_dir / (folder_name + "_stgan")
+        stgan_output_dir.mkdir(exist_ok=True)
 
         # 이상치 생성기 초기화
         generator_kwargs = {
@@ -359,21 +398,17 @@ def main(args):
         # 이상치가 포함된 데이터셋 생성
         outlier_df = create_outlier_dataset(df, generator.get_outlier_mask(), args.dataset_name)
 
-        # 데이터셋 형식에 맞게 저장
-        if "bay" in args.dataset_name:
-            # PemsBay 데이터셋은 h5 형식으로 저장
-            save_h5_dataset(outlier_df, os.path.join(dataset_output_dir, "pems_bay_outliers.h5"))
-            # 보조 파일 복사
-            copy_auxiliary_files(args.dataset_name, datasets_path["bay"], dataset_output_dir)
+        # PemsBay 데이터셋은 h5 형식으로 저장
+        save_h5_dataset(outlier_df, os.path.join(dataset_output_dir, "pems_bay_outliers.h5"))
+        # 보조 파일 복사
+        copy_auxiliary_files(args.dataset_name, datasets_path["bay"], dataset_output_dir)
 
-        elif "la" in args.dataset_name:
-            # MetrLA 데이터셋은 h5 형식으로 저장
-            save_h5_dataset(outlier_df, os.path.join(dataset_output_dir, "metr_la_outliers.h5"))
-            # 보조 파일 복사
-            copy_auxiliary_files(args.dataset_name, datasets_path["la"], dataset_output_dir)
+        # STGAN 형식으로 저장
+        save_stgan_format(outlier_df.values, stgan_output_dir)
 
         print(f"\n모든 파일이 {output_base_dir} 디렉토리에 성공적으로 저장되었습니다.")
         print(f"생성된 폴더: {folder_name}")
+        print(f"STGAN 형식 데이터 폴더: {folder_name}_stgan")
         print(f"사용된 시나리오: {args.scenario}")
 
     except Exception as e:
@@ -392,7 +427,7 @@ if __name__ == "__main__":
         "--dataset_name",
         type=str,
         default="bay_block",
-        help="데이터셋 이름 (bay_block, la_block, bay_point, la_point)",
+        help="데이터셋 이름 (bay_block, bay_point)",
     )
     parser.add_argument("--output_dir", type=str, default="./datasets/outliers", help="출력 디렉토리 경로")
     parser.add_argument(

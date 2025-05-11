@@ -17,7 +17,8 @@ from torch.utils.data import Dataset
 
 
 # 데이터셋 경로 정의
-datasets_path = {"bay": "./datasets/pems_bay", "la": "./datasets/metr_la"}
+datasets_path = {"bay": "./datasets/pems_bay"}
+stgan_path = "./datasets/stgan/pems_bay/data"
 
 
 class ImputationDataset(Dataset):
@@ -190,40 +191,26 @@ class MissingValuesPemsBay(MissingValuesBase):
         """
         super().__init__(p_fault, p_noise, features)
 
-        # PemsBay 데이터 로드
-        df = pd.read_hdf(os.path.join(datasets_path["bay"], "pems_bay.h5"))
+        # STGAN 형식의 PemsBay 데이터 로드
+        try:
+            # STGAN 형식으로 저장된 데이터 로드 시도
+            stgan_data = np.load(os.path.join(stgan_path, "data.npy"))
+            # (num_timestamps, num_nodes, 1, 2) -> (num_timestamps, num_nodes) 형태로 변환
+            data = stgan_data[:, :, 0, 0]  # 첫 번째 특성(속도)만 사용
 
-        if self.features is not None:
-            df = df[self.features]
+            # DataFrame으로 변환
+            self.df = pd.DataFrame(data)
 
-        self.df = df
-        self.training_mask = self._create_missing_mask(df).astype(bool)
+        except (FileNotFoundError, ValueError):
+            # 기존 방식으로 데이터 로드
+            self.df = pd.read_hdf(os.path.join(datasets_path["bay"], "pems_bay.h5"))
+
+            if self.features is not None:
+                self.df = self.df[self.features]
+
+        self.training_mask = self._create_missing_mask(self.df).astype(bool)
         # 비트 연산자 대신 논리 연산자 사용
-        mask2 = self._create_missing_mask(df).astype(bool)
-        self.eval_mask = mask2 & (~self.training_mask)
-
-
-class MissingValuesMetrLA(MissingValuesBase):
-    """
-    MetrLA 데이터셋에 결측치를 적용한 클래스
-    """
-
-    def __init__(self, p_fault=0.0015, p_noise=0.05, features=None):
-        """
-        초기화 및 데이터 로드
-        """
-        super().__init__(p_fault, p_noise, features)
-
-        # MetrLA 데이터 로드
-        df = pd.read_hdf(os.path.join(datasets_path["la"], "metr_la.h5"))
-
-        if self.features is not None:
-            df = df[self.features]
-
-        self.df = df
-        self.training_mask = self._create_missing_mask(df).astype(bool)
-        # 비트 연산자 대신 논리 연산자 사용
-        mask2 = self._create_missing_mask(df).astype(bool)
+        mask2 = self._create_missing_mask(self.df).astype(bool)
         self.eval_mask = mask2 & (~self.training_mask)
 
 
@@ -287,6 +274,48 @@ def save_h5_dataset(df, output_file):
     print(f"HDF5 데이터가 {output_file}에 저장되었습니다.")
 
 
+def save_stgan_format(masked_values, output_dir):
+    """
+    마스킹된 데이터를 STGAN 형식으로 저장합니다.
+
+    Args:
+        masked_values: 마스킹된 데이터값 (2D 배열)
+        output_dir: 출력 디렉토리 경로
+    """
+    try:
+        # 원본 STGAN 데이터 로드
+        original_data = np.load(os.path.join(stgan_path, "data.npy"))
+
+        # 마스킹된 데이터로 STGAN 형식 데이터 생성
+        masked_data = original_data.copy()
+
+        # 마스킹된 2D 데이터를 4D로 변환
+        for i in range(masked_values.shape[0]):
+            for j in range(masked_values.shape[1]):
+                if np.isnan(masked_values[i, j]):
+                    # 결측치는 모든 특성에 적용
+                    masked_data[i, j, :, :] = np.nan
+                else:
+                    # 값 복사
+                    masked_data[i, j, 0, 0] = masked_values[i, j]
+                    masked_data[i, j, 0, 1] = masked_values[i, j]  # 두 번째 특성도 동일한 값 사용
+
+        # STGAN 형식으로 저장
+        np.save(os.path.join(output_dir, "data.npy"), masked_data)
+
+        # 필요한 보조 파일 복사
+        for file in ["time_features.txt", "node_subgraph.npy", "node_adjacent.txt", "node_dist.txt"]:
+            src_file = os.path.join(stgan_path, file)
+            dst_file = os.path.join(output_dir, file)
+            if os.path.exists(src_file):
+                shutil.copy2(src_file, dst_file)
+
+        print(f"STGAN 형식 데이터가 {output_dir}에 저장되었습니다.")
+
+    except FileNotFoundError:
+        print("원본 STGAN 형식 데이터를 찾을 수 없습니다. 먼저 prepare_datasets.py를 실행하세요.")
+
+
 def copy_auxiliary_files(dataset_name, original_dir, output_dir):
     """
     필요한 보조 파일(예: 거리 행렬, 센서 ID 등)을 복사합니다.
@@ -296,21 +325,12 @@ def copy_auxiliary_files(dataset_name, original_dir, output_dir):
         original_dir: 원본 데이터 디렉토리
         output_dir: 출력 디렉토리
     """
-    if "bay" in dataset_name:
-        # PemsBay 데이터셋의 보조 파일 복사
-        files_to_copy = ["pems_bay_dist.npy", "distances_bay.csv"]
-        for file in files_to_copy:
-            if os.path.exists(os.path.join(original_dir, file)):
-                shutil.copy2(os.path.join(original_dir, file), os.path.join(output_dir, file))
-                print(f"보조 파일 {file}이 복사되었습니다.")
-
-    elif "la" in dataset_name:
-        # MetrLA 데이터셋의 보조 파일 복사
-        files_to_copy = ["metr_la_dist.npy", "distances_la.csv", "sensor_ids_la.txt"]
-        for file in files_to_copy:
-            if os.path.exists(os.path.join(original_dir, file)):
-                shutil.copy2(os.path.join(original_dir, file), os.path.join(output_dir, file))
-                print(f"보조 파일 {file}이 복사되었습니다.")
+    # PemsBay 데이터셋의 보조 파일 복사
+    files_to_copy = ["pems_bay_dist.npy", "distances_bay.csv"]
+    for file in files_to_copy:
+        if os.path.exists(os.path.join(original_dir, file)):
+            shutil.copy2(os.path.join(original_dir, file), os.path.join(output_dir, file))
+            print(f"보조 파일 {file}이 복사되었습니다.")
 
 
 def get_dataset(dataset_name, p_fault=0.0015, p_noise=0.05):
@@ -329,10 +349,6 @@ def get_dataset(dataset_name, p_fault=0.0015, p_noise=0.05):
         dataset = MissingValuesPemsBay(p_fault=p_fault, p_noise=p_noise)
     elif dataset_name == "bay_point":
         dataset = MissingValuesPemsBay(p_fault=0.0, p_noise=0.25)
-    elif dataset_name == "la_block":
-        dataset = MissingValuesMetrLA(p_fault=p_fault, p_noise=p_noise)
-    elif dataset_name == "la_point":
-        dataset = MissingValuesMetrLA(p_fault=0.0, p_noise=0.25)
     else:
         raise ValueError(f"Dataset {dataset_name} not available in this setting.")
     return dataset
@@ -363,21 +379,20 @@ def main(args):
         dataset_output_dir = output_base_dir / folder_name
         dataset_output_dir.mkdir(exist_ok=True)
 
+        # STGAN 형식 출력 디렉토리 생성
+        stgan_output_dir = output_base_dir / (folder_name + "_stgan")
+        stgan_output_dir.mkdir(exist_ok=True)
+
         # 결측치가 있는 데이터셋 생성
         masked_df = create_masked_dataset(original_df, dataset.training_mask, args.dataset_name)
 
-        # 데이터셋 형식에 맞게 저장
-        if "bay" in args.dataset_name:
-            # PemsBay 데이터셋은 h5 형식으로 저장
-            save_h5_dataset(masked_df, os.path.join(dataset_output_dir, "pems_bay_masked.h5"))
-            # 보조 파일 복사
-            copy_auxiliary_files(args.dataset_name, datasets_path["bay"], dataset_output_dir)
+        # PemsBay 데이터셋은 h5 형식으로 저장
+        save_h5_dataset(masked_df, os.path.join(dataset_output_dir, "pems_bay_masked.h5"))
+        # 보조 파일 복사
+        copy_auxiliary_files(args.dataset_name, datasets_path["bay"], dataset_output_dir)
 
-        elif "la" in args.dataset_name:
-            # MetrLA 데이터셋은 h5 형식으로 저장
-            save_h5_dataset(masked_df, os.path.join(dataset_output_dir, "metr_la_masked.h5"))
-            # 보조 파일 복사
-            copy_auxiliary_files(args.dataset_name, datasets_path["la"], dataset_output_dir)
+        # STGAN 형식으로 저장
+        save_stgan_format(masked_df.values, stgan_output_dir)
 
         # CSV 형식으로도 저장 (선택 사항)
         if args.save_csv:
@@ -409,6 +424,7 @@ def main(args):
 
         print(f"\n모든 파일이 {output_base_dir} 디렉토리에 성공적으로 저장되었습니다.")
         print(f"생성된 폴더: {folder_name}")
+        print(f"STGAN 형식 데이터 폴더: {folder_name}_stgan")
         print(f"사용된 마스크: 결함 확률={args.p_fault}, 잡음 확률={args.p_noise}")
 
     except Exception as e:
@@ -427,7 +443,7 @@ if __name__ == "__main__":
         "--dataset_name",
         type=str,
         default="bay_block",
-        help="데이터셋 이름 (bay_block, la_block, bay_point, la_point)",
+        help="데이터셋 이름 (bay_block, bay_point)",
     )
     parser.add_argument("--output_dir", type=str, default="./datasets/masked", help="출력 디렉토리 경로")
     parser.add_argument("--window", type=int, default=24, help="윈도우 크기")
