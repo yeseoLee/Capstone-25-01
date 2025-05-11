@@ -25,6 +25,7 @@ parser.add_argument("--num_adj", type=int, default=9, help="number of nodes in s
 parser.add_argument("--num_layer", type=int, default=2, help="number of layers in LSTM and DCRNN")
 parser.add_argument("--trend_time", type=int, default=7 * 24, help="the length of trend segment is 7 days")
 
+parser.add_argument("--cpu", type=bool, default=False)
 parser.add_argument("--cuda", type=bool, default=torch.cuda.is_available())
 parser.add_argument("--cuda_id", type=str, default="3")
 parser.add_argument("--seed", type=int, default=20)
