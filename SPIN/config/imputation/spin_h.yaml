@@ -5,7 +5,7 @@
 dataset_name: bay_point
 val_len: 0.1
 
-window: 24  # [24, 36]
+window: 12  # 24에서 12로 감소
 stride: 1
 
 #### Training params ##########################################################
@@ -18,17 +18,17 @@ lr_scheduler: cosine
 lr: 0.0008
 patience: 40
 precision: 16
-batch_size: 8
-batch_inference: 20
-batches_epoch: 300
+batch_size: 4  # 8에서 4로 감소
+batch_inference: 10  # 20에서 10으로 감소
+batches_epoch: 150  # 300에서 150으로 감소
 
 #### Model params #############################################################
 model_name: 'spin_h'
-h_size: 32
-z_size: 128
-z_heads: 4
-eta: 3
-n_layers: 5
+h_size: 16  # 32에서 16으로 감소
+z_size: 64  # 128에서 64로 감소
+z_heads: 2  # 4에서 2로 감소
+eta: 2  # 3에서 2로 감소
+n_layers: 3  # 5에서 3으로 감소
 message_layers: 1
 update_z_cross: False
 norm: True
