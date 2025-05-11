@@ -23,7 +23,7 @@ dependencies:
       - pandas==1.4.4
       # - torch_spatiotemporal==0.1.1
       - "git+https://github.com/yeseoLee/tsl.git@main#egg=torch-spatiotemporal"
-      - torch_sparse
-      - torch_scatter
-      - torch_cluster
-      - torch_spline_conv
+      # - torch_sparse
+      # - torch_scatter
+      # - torch_cluster
+      # - torch_spline_conv
