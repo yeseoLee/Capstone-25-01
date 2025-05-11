@@ -1,0 +1,16 @@
+name: stgan
+channels:
+  - pytorch
+  - pyg
+  - defaults
+dependencies:
+  - python=3.12.4
+  - pip
+  - pytorch>=1.9
+  - torchvision
+  - numpy
+  - pandas
+  - scipy
+  - matplotlib
+  - pip:
+    - torch-geometric
