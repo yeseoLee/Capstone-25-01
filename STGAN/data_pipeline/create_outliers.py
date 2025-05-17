@@ -22,18 +22,27 @@ class OutlierGenerator:
     이상치 생성기 기본 클래스
     """
 
-    def __init__(self, data, time_features, seed=42):
+    def __init__(self, data, time_features, seed=42, start_interval=0.0, end_interval=1.0):
         """
         초기화
         Args:
             data: 원본 데이터 (4D 배열: 시간, 노드, 특성, 채널)
             time_features: 시간 특성 데이터 (2D 배열: 시간, 특성[요일+시간])
             seed: 랜덤 시드
+            start_interval: 이상치 생성 시작 구간 (0.0~1.0)
+            end_interval: 이상치 생성 종료 구간 (0.0~1.0)
         """
         self.data = data.copy()
         self.time_features = time_features
         self.outlier_mask = np.ones_like(data, dtype=bool)  # True: 정상, False: 이상치
         np.random.seed(seed)
+
+        # 시작 및 종료 구간 계산
+        time_len = self.data.shape[0]
+        self.start_idx = int(time_len * start_interval)
+        self.end_idx = int(time_len * end_interval)
+        self.start_interval = start_interval
+        self.end_interval = end_interval
 
     def generate(self):
         """
@@ -59,7 +68,17 @@ class PointOutlierGenerator(OutlierGenerator):
     점 이상치 생성기 - 임의의 데이터 포인트에 이상치 추가
     """
 
-    def __init__(self, data, time_features, seed=42, min_deviation=0.2, max_deviation=0.5, p_outlier=0.01):
+    def __init__(
+        self,
+        data,
+        time_features,
+        seed=42,
+        min_deviation=0.2,
+        max_deviation=0.5,
+        p_outlier=0.01,
+        start_interval=0.0,
+        end_interval=1.0,
+    ):
         """
         초기화
         Args:
@@ -69,8 +88,10 @@ class PointOutlierGenerator(OutlierGenerator):
             min_deviation: 최소 편차 (정규화된 값)
             max_deviation: 최대 편차 (정규화된 값)
             p_outlier: 이상치 생성 확률
+            start_interval: 이상치 생성 시작 구간 (0.0~1.0)
+            end_interval: 이상치 생성 종료 구간 (0.0~1.0)
         """
-        super().__init__(data, time_features, seed)
+        super().__init__(data, time_features, seed, start_interval, end_interval)
         self.min_deviation = min_deviation
         self.max_deviation = max_deviation
         self.p_outlier = p_outlier
@@ -80,7 +101,8 @@ class PointOutlierGenerator(OutlierGenerator):
         점 이상치 생성
         """
         print(
-            f"점 이상치 생성 중... (편차 범위: {self.min_deviation:.2f}-{self.max_deviation:.2f}, 확률: {self.p_outlier:.4f})"  # noqa: E501
+            f"점 이상치 생성 중... (편차 범위: {self.min_deviation:.2f}-{self.max_deviation:.2f}, "
+            f"확률: {self.p_outlier:.4f}, 구간: {self.start_interval:.2f}-{self.end_interval:.2f})"
         )
 
         # 데이터 형태 확인
@@ -89,8 +111,8 @@ class PointOutlierGenerator(OutlierGenerator):
         # 이상치 생성할 위치 결정 (시간, 노드)
         outlier_mask = np.random.random((time_len, node_len)) < self.p_outlier
 
-        # 이상치 생성
-        for t in range(time_len):
+        # 이상치 생성 (지정된 구간만)
+        for t in range(self.start_idx, self.end_idx):
             for n in range(node_len):
                 if outlier_mask[t, n]:
                     # 편차 방향 결정 (증가 또는 감소)
@@ -128,6 +150,8 @@ class BlockOutlierGenerator(OutlierGenerator):
         min_duration=5,
         max_duration=20,
         p_outlier=0.005,
+        start_interval=0.0,
+        end_interval=1.0,
     ):
         """
         초기화
@@ -140,8 +164,10 @@ class BlockOutlierGenerator(OutlierGenerator):
             min_duration: 최소 지속 시간 (시간 단위)
             max_duration: 최대 지속 시간 (시간 단위)
             p_outlier: 이상치 발생 확률
+            start_interval: 이상치 생성 시작 구간 (0.0~1.0)
+            end_interval: 이상치 생성 종료 구간 (0.0~1.0)
         """
-        super().__init__(data, time_features, seed)
+        super().__init__(data, time_features, seed, start_interval, end_interval)
         self.min_deviation = min_deviation
         self.max_deviation = max_deviation
         self.min_duration = min_duration
@@ -154,7 +180,8 @@ class BlockOutlierGenerator(OutlierGenerator):
         """
         print(
             f"블록 이상치 생성 중... (편차 범위: {self.min_deviation:.2f}-{self.max_deviation:.2f}, "
-            + f"지속 시간: {self.min_duration}-{self.max_duration}, 확률: {self.p_outlier:.4f})"
+            + f"지속 시간: {self.min_duration}-{self.max_duration}, 확률: {self.p_outlier:.4f}, "
+            + f"구간: {self.start_interval:.2f}-{self.end_interval:.2f})"
         )
 
         # 데이터 형태 확인
@@ -162,8 +189,8 @@ class BlockOutlierGenerator(OutlierGenerator):
 
         # 각 노드별로 이상치 블록 생성
         for n in range(node_len):
-            t = 0
-            while t < time_len:
+            t = self.start_idx
+            while t < self.end_idx:
                 if np.random.random() < self.p_outlier:
                     # 편차 방향 결정 (증가 또는 감소)
                     direction = np.random.choice([-1, 1])
@@ -173,7 +200,7 @@ class BlockOutlierGenerator(OutlierGenerator):
                     duration = np.random.randint(self.min_duration, self.max_duration + 1)
 
                     # 블록 이상치 적용
-                    end_t = min(t + duration, time_len)
+                    end_t = min(t + duration, self.end_idx)
                     for i in range(t, end_t):
                         for f in range(feature_dim):
                             for c in range(channel_dim):
@@ -198,7 +225,7 @@ class ContextualOutlierGenerator(OutlierGenerator):
     맥락적 이상치 생성기 - 특정 맥락에서 부적절한 데이터 패턴 생성
     """
 
-    def __init__(self, data, time_features, seed=42, replace_ratio=0.05):
+    def __init__(self, data, time_features, seed=42, replace_ratio=0.05, start_interval=0.0, end_interval=1.0):
         """
         초기화
         Args:
@@ -206,15 +233,19 @@ class ContextualOutlierGenerator(OutlierGenerator):
             time_features: 시간 특성 데이터 (첫 7개: 요일, 다음 24개: 시간)
             seed: 랜덤 시드
             replace_ratio: 대체 비율 (맥락 이상치를 생성할 데이터의 비율)
+            start_interval: 이상치 생성 시작 구간 (0.0~1.0)
+            end_interval: 이상치 생성 종료 구간 (0.0~1.0)
         """
-        super().__init__(data, time_features, seed)
+        super().__init__(data, time_features, seed, start_interval, end_interval)
         self.replace_ratio = replace_ratio
 
     def generate(self):
         """
         맥락적 이상치 생성
         """
-        print(f"맥락적 이상치 생성 중... (대체 비율: {self.replace_ratio:.2f})")
+        print(
+            f"맥락적 이상치 생성 중... (대체 비율: {self.replace_ratio:.2f}, 구간: {self.start_interval:.2f}-{self.end_interval:.2f})"
+        )
 
         # 시간 특성 분석
         time_len = self.time_features.shape[0]
@@ -245,7 +276,9 @@ class ContextualOutlierGenerator(OutlierGenerator):
 
         # 요일 정보는 첫 7개 열에 원-핫 인코딩
         for day in range(7):  # 0: 월요일, ..., 6: 일요일
-            day_indices[day] = np.where(self.time_features[:, day] == 1)[0]
+            indices = np.where(self.time_features[:, day] == 1)[0]
+            # 지정된 구간 내 인덱스만 필터링
+            day_indices[day] = [idx for idx in indices if self.start_idx <= idx < self.end_idx]
 
         return day_indices
 
@@ -257,7 +290,9 @@ class ContextualOutlierGenerator(OutlierGenerator):
 
         # 시간 정보는 7~30 열에 원-핫 인코딩
         for hour in range(24):
-            hour_indices[hour] = np.where(self.time_features[:, hour + 7] == 1)[0]
+            indices = np.where(self.time_features[:, hour + 7] == 1)[0]
+            # 지정된 구간 내 인덱스만 필터링
+            hour_indices[hour] = [idx for idx in indices if self.start_idx <= idx < self.end_idx]
 
         return hour_indices
 
@@ -395,11 +430,16 @@ def save_outlier_data(data, outlier_mask, output_dir, scenario, **kwargs):
     output_path.mkdir(parents=True, exist_ok=True)
 
     # 폴더명에 시나리오와 파라미터 포함
+    start_interval = kwargs.get("start_interval", 0.0)
+    end_interval = kwargs.get("end_interval", 1.0)
+    interval_str = f"_interval{start_interval:.2f}-{end_interval:.2f}"
+
     if scenario == "point":
         folder_name = (
             f"{scenario}_dev{kwargs.get('min_deviation', 0.2):.2f}-"
             f"{kwargs.get('max_deviation', 0.5):.2f}_"
             f"p{kwargs.get('p_outlier', 0.01):.4f}"
+            f"{interval_str}"
         )
     elif scenario == "block":
         folder_name = (
@@ -407,11 +447,12 @@ def save_outlier_data(data, outlier_mask, output_dir, scenario, **kwargs):
             f"{kwargs.get('max_deviation', 0.5):.2f}_"
             f"dur{kwargs.get('min_duration', 5)}-{kwargs.get('max_duration', 20)}_"
             f"p{kwargs.get('p_outlier', 0.005):.4f}"
+            f"{interval_str}"
         )
     elif scenario == "contextual":
-        folder_name = f"{scenario}_ratio{kwargs.get('replace_ratio', 0.05):.2f}"
+        folder_name = f"{scenario}_ratio{kwargs.get('replace_ratio', 0.05):.2f}{interval_str}"
     else:
-        folder_name = scenario
+        folder_name = f"{scenario}{interval_str}"
 
     data_dir = output_path / folder_name
     data_dir.mkdir(parents=True, exist_ok=True)
@@ -458,7 +499,9 @@ def create_outlier_dataset(dataset_name, output_dir, scenario, **kwargs):
         generator = get_outlier_generator(data, time_features, scenario, **kwargs)
 
         # 이상치 생성
-        print(f"'{scenario}' 시나리오로 이상치 생성 중...")
+        start_interval = kwargs.get("start_interval", 0.0)
+        end_interval = kwargs.get("end_interval", 1.0)
+        print(f"'{scenario}' 시나리오로 이상치 생성 중... (구간: {start_interval:.2f}-{end_interval:.2f})")
         outlier_data, outlier_mask = generator.generate()
 
         # 이상치가 포함된 데이터 저장
@@ -485,7 +528,7 @@ def main(args):
         output_dir.mkdir(parents=True, exist_ok=True)
 
         # 시나리오별 파라미터 설정
-        generator_kwargs = {"seed": args.seed}
+        generator_kwargs = {"seed": args.seed, "start_interval": args.start_interval, "end_interval": args.end_interval}
 
         if args.scenario == "point":
             generator_kwargs.update(
@@ -539,6 +582,18 @@ if __name__ == "__main__":
         help="이상치 생성 시나리오",
     )
     parser.add_argument("--seed", type=int, default=42, help="랜덤 시드")
+    parser.add_argument(
+        "--start_interval",
+        type=float,
+        default=0.0,
+        help="이상치 생성 시작 구간 (0.0~1.0)",
+    )
+    parser.add_argument(
+        "--end_interval",
+        type=float,
+        default=1.0,
+        help="이상치 생성 종료 구간 (0.0~1.0)",
+    )
 
     # 점/블록 이상치용 파라미터
     parser.add_argument("--min_deviation", type=float, default=0.2, help="최소 편차 (정규화된 값)")

@@ -16,7 +16,9 @@ import numpy as np
 STGAN_DATA_PATH = "./STGAN/bay/data"
 
 
-def create_missing_mask(data_shape, p_fault=0.0015, p_noise=0.05, mask_type="block"):  # noqa: C901
+def create_missing_mask(
+    data_shape, p_fault=0.0015, p_noise=0.05, mask_type="block", start_interval=0.0, end_interval=1.0
+):  # noqa: C901
     """
     결측치 마스크 생성
 
@@ -25,12 +27,19 @@ def create_missing_mask(data_shape, p_fault=0.0015, p_noise=0.05, mask_type="blo
         p_fault: 결함 확률 (연속적인 결측치를 생성하는 비율)
         p_noise: 잡음 확률 (독립적인 결측치를 생성하는 비율)
         mask_type: 마스크 유형 ("block" 또는 "point")
+        start_interval: 결측치 생성 시작 구간 (0.0~1.0)
+        end_interval: 결측치 생성 종료 구간 (0.0~1.0)
 
     Returns:
         mask: 마스크 (1: 유효한 데이터, 0: 결측치)
     """
     # 마스크 초기화 (1: 유효한 데이터)
     mask = np.ones(data_shape)
+
+    # 시작 및 종료 구간 계산
+    time_len = data_shape[0]
+    start_idx = int(time_len * start_interval)
+    end_idx = int(time_len * end_interval)
 
     if mask_type == "point":
         # point 방식: 독립적인 결측치만 생성
@@ -40,11 +49,11 @@ def create_missing_mask(data_shape, p_fault=0.0015, p_noise=0.05, mask_type="blo
     # 결함 (연속적인 결측치) 생성
     if p_fault > 0:
         for i in range(data_shape[1]):  # 노드별 처리
-            for t in range(data_shape[0]):  # 시간별 처리
+            for t in range(start_idx, end_idx):  # 지정된 구간에서만 시간별 처리
                 if np.random.random() < p_fault:
                     # 결함 길이 (1~10 사이 임의 값)
                     fault_length = np.random.randint(1, 11)
-                    if t + fault_length <= data_shape[0]:
+                    if t + fault_length <= end_idx:
                         # 모든 특성에 동일한 마스크 적용
                         mask[t : t + fault_length, i, :, :] = 0
 
@@ -52,7 +61,7 @@ def create_missing_mask(data_shape, p_fault=0.0015, p_noise=0.05, mask_type="blo
     if p_noise > 0:
         # 노드 및 시간에 대해 랜덤 마스크 생성
         random_mask = np.random.random(data_shape[:2]) < p_noise
-        for t in range(data_shape[0]):
+        for t in range(start_idx, end_idx):
             for i in range(data_shape[1]):
                 if random_mask[t, i]:
                     # 모든 특성에 동일한 마스크 적용
@@ -61,7 +70,9 @@ def create_missing_mask(data_shape, p_fault=0.0015, p_noise=0.05, mask_type="blo
     return mask
 
 
-def save_masked_data(data, mask, output_dir, mask_type="block", p_fault=0.0015, p_noise=0.05):
+def save_masked_data(
+    data, mask, output_dir, mask_type="block", p_fault=0.0015, p_noise=0.05, start_interval=0.0, end_interval=1.0
+):
     """
     마스킹된 데이터를 저장
 
@@ -72,12 +83,14 @@ def save_masked_data(data, mask, output_dir, mask_type="block", p_fault=0.0015, 
         mask_type: 마스크 유형
         p_fault: 결함 확률
         p_noise: 잡음 확률
+        start_interval: 결측치 생성 시작 구간
+        end_interval: 결측치 생성 종료 구간
     """
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
 
     # 폴더명에 파라미터 포함
-    folder_name = f"{mask_type}_fault{p_fault:.4f}_noise{p_noise:.4f}"
+    folder_name = f"{mask_type}_fault{p_fault:.4f}_noise{p_noise:.4f}_interval{start_interval:.2f}-{end_interval:.2f}"
     data_dir = output_path / folder_name
     data_dir.mkdir(parents=True, exist_ok=True)
 
@@ -101,7 +114,9 @@ def save_masked_data(data, mask, output_dir, mask_type="block", p_fault=0.0015, 
     return data_dir
 
 
-def create_masked_dataset(dataset_name, output_dir, p_fault=0.0015, p_noise=0.05, mask_type="block"):
+def create_masked_dataset(
+    dataset_name, output_dir, p_fault=0.0015, p_noise=0.05, mask_type="block", start_interval=0.0, end_interval=1.0
+):
     """
     마스킹된 데이터셋 생성
 
@@ -111,6 +126,8 @@ def create_masked_dataset(dataset_name, output_dir, p_fault=0.0015, p_noise=0.05
         p_fault: 결함 확률
         p_noise: 잡음 확률
         mask_type: 마스크 유형 ("block" 또는 "point")
+        start_interval: 결측치 생성 시작 구간
+        end_interval: 결측치 생성 종료 구간
     """
     if dataset_name == "bay":
         data_path = os.path.join(STGAN_DATA_PATH, "data.npy")
@@ -123,11 +140,13 @@ def create_masked_dataset(dataset_name, output_dir, p_fault=0.0015, p_noise=0.05
         print(f"데이터 형태: {data.shape}")
 
         # 마스크 생성
-        print(f"마스크 생성 중 (타입: {mask_type}, 결함: {p_fault}, 잡음: {p_noise})...")
-        mask = create_missing_mask(data.shape, p_fault, p_noise, mask_type)
+        print(
+            f"마스크 생성 중 (타입: {mask_type}, 결함: {p_fault}, 잡음: {p_noise}, 구간: {start_interval:.2f}-{end_interval:.2f})..."
+        )
+        mask = create_missing_mask(data.shape, p_fault, p_noise, mask_type, start_interval, end_interval)
 
         # 마스킹된 데이터 저장
-        data_dir = save_masked_data(data, mask, output_dir, mask_type, p_fault, p_noise)
+        data_dir = save_masked_data(data, mask, output_dir, mask_type, p_fault, p_noise, start_interval, end_interval)
 
         # 통계 정보 출력
         missing_ratio = 1.0 - np.mean(mask)
@@ -150,7 +169,15 @@ def main(args):
         output_dir.mkdir(parents=True, exist_ok=True)
 
         # 마스킹된 데이터셋 생성
-        data_dir = create_masked_dataset(args.dataset_name, output_dir, args.p_fault, args.p_noise, args.mask_type)
+        data_dir = create_masked_dataset(
+            args.dataset_name,
+            output_dir,
+            args.p_fault,
+            args.p_noise,
+            args.mask_type,
+            args.start_interval,
+            args.end_interval,
+        )
 
         print(f"\n모든 파일이 {data_dir} 디렉토리에 성공적으로 저장되었습니다.")
 
@@ -176,6 +203,18 @@ if __name__ == "__main__":
         default="block",
         choices=["block", "point"],
         help="마스크 유형 (block: 연속적 결측치, point: 독립적 결측치)",
+    )
+    parser.add_argument(
+        "--start_interval",
+        type=float,
+        default=0.0,
+        help="결측치 생성 시작 구간 (0.0~1.0)",
+    )
+    parser.add_argument(
+        "--end_interval",
+        type=float,
+        default=1.0,
+        help="결측치 생성 종료 구간 (0.0~1.0)",
     )
 
     args = parser.parse_args()
