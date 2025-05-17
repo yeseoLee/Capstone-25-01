@@ -21,13 +21,24 @@ class STGANBayDataset(Dataset):
             root_dir: STGAN 데이터셋이 있는 디렉토리 경로
                 기본값은 현재 작업 디렉토리의 'STGAN/bay'입니다.
         """
+        # 먼저 부모 클래스 초기화
+        super().__init__()
+
+        # 초기화 후 속성 설정
         if root_dir is None:
             root_dir = os.path.join(os.getcwd(), "STGAN", "bay")
 
-        self.root_dir = root_dir
-        self.data_dir = os.path.join(root_dir, "data")
+        # 클래스 변수로 저장
+        self._root_dir = root_dir
+        self._data_dir = os.path.join(root_dir, "data")
 
-        super().__init__()
+    @property
+    def root_dir(self):
+        return self._root_dir
+
+    @property
+    def data_dir(self):
+        return self._data_dir
 
     def load(self):
         # 데이터 로드
