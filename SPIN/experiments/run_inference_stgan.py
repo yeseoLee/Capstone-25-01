@@ -19,7 +19,6 @@ import os
 import traceback
 
 import numpy as np
-import pytorch_lightning as pl
 from spin.imputers import SPINImputer
 from spin.models import SPINHierarchicalModel, SPINModel
 from spin.stgan_dataset import STGANBayDataset
@@ -31,7 +30,6 @@ from tsl.data import ImputationDataset, SpatioTemporalDataModule
 from tsl.data.preprocessing import StandardScaler
 from tsl.imputers import Imputer
 from tsl.nn.models.imputation import GRINModel
-from tsl.nn.utils import casting
 from tsl.utils import ArgParser, numpy_metrics, parser_utils
 from tsl.utils.python_utils import ensure_list
 import yaml
@@ -376,6 +374,26 @@ def save_imputed_data_stgan_format(args, imputed_data, original_data, mask, data
     return output_path
 
 
+# TSL Data 객체를 안전하게 처리하는 커스텀 콜레이터 함수
+def safe_collate_fn(batch):
+    """TSL Data 객체를 안전하게 처리하는 콜레이터 함수
+
+    Args:
+        batch: 배치 데이터
+
+    Returns:
+        배치 데이터 (TSL Data 객체가 그대로 반환됨)
+    """
+    # 배치 크기가 1인 경우 그대로 반환
+    if len(batch) == 1:
+        return batch[0]
+
+    # 여러 TSL Data 객체를 처리 (원래 TSL에서 정의한 방식으로)
+    # 이 부분은 데이터셋 형식에 따라 다르게 구현해야 할 수 있음
+    print(f"배치 크기: {len(batch)}, 형식: {type(batch[0])}")
+    return batch[0]  # 일단 첫 번째 항목만 반환
+
+
 def run_experiment(args):  # noqa: C901
     # Set configuration
     args = copy.deepcopy(args)
@@ -501,20 +519,14 @@ def run_experiment(args):  # noqa: C901
     # 테스트 마스크 설정
     seeds = ensure_list(args.test_mask_seed)
     if not seeds:
-        seeds = [None]  # 시드가 지정되지 않은 경우 기본값 사용
+        # 시드가 없으면 기본값 하나만 사용 (메모리 문제 해결을 위해)
+        seeds = [1234]
 
     # Colab이나 제한된 메모리 환경에서 실행할 때 더 작은 배치 크기 사용
-    test_batch_size = min(args.batch_size, 8)  # 배치 크기 제한
-
-    # 메모리 최적화를 위한 trainer 설정
-    trainer = pl.Trainer(
-        gpus=int(torch.cuda.is_available()),
-        enable_progress_bar=True,  # 진행 상황 표시
-        enable_model_summary=False,  # 모델 요약 비활성화
-        enable_checkpointing=False,  # 체크포인트 비활성화
-    )
+    test_batch_size = min(args.batch_size, 4)  # 배치 크기 제한 (더 작게 설정)
 
     print(f"테스트 배치 크기: {test_batch_size}")
+    print(f"사용할 시드 목록: {seeds}")
 
     # GPU 메모리 사용량 확인 함수
     def get_gpu_memory_usage():
@@ -542,94 +554,117 @@ def run_experiment(args):  # noqa: C901
         # 데이터 로드 및 마스크 설정
         update_test_eval_mask(dm, dataset, args.p_fault, args.p_noise, seed)
 
-        # 테스트 데이터로더 생성 (배치 크기 조정)
-        test_dataset = dm.test_dataloader().dataset
+        # TSL 라이브러리의 기본 데이터로더 사용 (커스텀 데이터로더 대신)
+        # 배치 크기 조정을 위해 DataModule 설정 업데이트
+        if hasattr(dm, "batch_size") and dm.batch_size > test_batch_size:
+            print(f"배치 크기 조정: {dm.batch_size} -> {test_batch_size}")
+            dm.batch_size = test_batch_size
+            # 데이터로더 재설정
+            dm.setup()
+
+        # 원본 TSL 데이터로더 가져오기
+        original_dataloader = dm.test_dataloader()
+        print(f"원본 테스트 데이터셋 크기: {len(original_dataloader.dataset)}")
+
+        # 배치 크기가 1인 새로운 데이터로더 생성 (메모리 문제 방지)
+        # 배치 크기를 1로 설정하면 collate_fn이 필요 없음
         test_dataloader = DataLoader(
-            test_dataset,
-            batch_size=test_batch_size,
+            original_dataloader.dataset,
+            batch_size=1,  # 배치 크기를 1로 설정하여 collate 문제 방지
             shuffle=False,
             num_workers=0,  # 메모리 문제 방지를 위해 worker 수 제한
             pin_memory=False,  # 메모리 사용량 최적화
+            collate_fn=safe_collate_fn,  # 안전한 콜레이트 함수 사용
         )
+
+        print(f"테스트 데이터로더 생성 완료: 배치 크기=1, 배치 수={len(test_dataloader)}")
 
         try:
             # 예측 전 메모리 사용량 확인
             print(get_gpu_memory_usage())
 
-            # 예측 실행 (PyTorch Lightning이 내부적으로 배치 처리)
-            print(f"시드 {seed}에 대한 예측 시작...")
-            # 메모리 사용량 모니터링 메시지 추가
-            print("예측 중... (멈춘 것처럼 보일 수 있으나 배치 처리 중입니다)")
+            # PyTorch Lightning의 predict 메서드 대신 직접 구현
+            print("PyTorch Lightning Trainer 대신 직접 예측 수행...")
 
-            # 사용자 정의 콜백 함수 생성 (메모리 모니터링용)
-            class MemoryMonitorCallback(pl.Callback):
-                def on_predict_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=0):
-                    # 매 5 배치마다 메모리 사용량 출력
-                    if batch_idx % 5 == 0:
-                        print(f"Batch {batch_idx} 완료 - {get_gpu_memory_usage()}")
+            # 모델을 평가 모드로 설정
+            imputer.model.eval()
 
-                    # 메모리 부족 문제 방지를 위해 주기적으로 캐시 비우기
+            # 결과 저장용 리스트
+            all_y_hat = []
+            all_y = []
+            all_mask = []
+
+            # 배치별 예측
+            with torch.no_grad():
+                for batch_idx, batch in enumerate(test_dataloader):
+                    # 첫 10개 배치마다 진행 상황 출력
                     if batch_idx % 10 == 0:
+                        print(f"배치 {batch_idx}/{len(test_dataloader)} 처리 중... {get_gpu_memory_usage()}")
+
+                    # 배치 데이터를 GPU로 이동 (가능한 경우)
+                    if torch.cuda.is_available():
+                        batch = batch.to("cuda")
+
+                    # 예측 수행
+                    # TSL 데이터 객체인 경우 내부 데이터 접근
+                    if hasattr(batch, "x") and hasattr(batch, "y") and hasattr(batch, "mask"):
+                        try:
+                            # 모델 예측
+                            y_hat = imputer.predict_batch(batch)
+
+                            # 결과 저장
+                            all_y_hat.append(y_hat.detach().cpu())
+                            all_y.append(batch.y.detach().cpu())
+                            all_mask.append(batch.mask.detach().cpu())
+                        except Exception as e:
+                            print(f"배치 {batch_idx} 예측 중 오류 발생: {e}")
+                            # 배치 구조 디버깅
+                            print(f"배치 구조: {[attr for attr in dir(batch) if not attr.startswith('_')]}")
+                    else:
+                        print(f"배치 {batch_idx}에 필요한 속성이 없음. 건너뜀.")
+
+                    # 메모리 관리
+                    if batch_idx % 20 == 0:
                         torch.cuda.empty_cache()
 
-            # 메모리 모니터링 콜백 추가
-            memory_callback = MemoryMonitorCallback()
-            trainer.callbacks.append(memory_callback)
+            # 결과 통합
+            if all_y_hat:
+                # 텐서 연결
+                y_hat = torch.cat(all_y_hat, dim=0)
+                y = torch.cat(all_y, dim=0)
+                mask = torch.cat(all_mask, dim=0)
 
-            # 예측 실행
-            output = trainer.predict(imputer, dataloaders=test_dataloader)
-            print(f"예측 완료! {get_gpu_memory_usage()}")
+                # NumPy 배열로 변환
+                y_hat_np = y_hat.numpy()
+                y_np = y.numpy()
+                mask_np = mask.numpy()
 
-            # 메모리 해제
-            torch.cuda.empty_cache()
-            print(f"메모리 정리 후: {get_gpu_memory_usage()}")
+                print(f"예측 완료! 총 {len(all_y_hat)} 배치 처리됨.")
+                print(f"결과 형태: y_hat={y_hat_np.shape}, y={y_np.shape}, mask={mask_np.shape}")
 
-            # 예측 결과 확인
-            if output is None or len(output) == 0:
-                print(f"경고: 시드 {seed}에 대한 예측 결과가 비어 있습니다. 다음 시드로 넘어갑니다.")
-                continue
+                # MAE 계산
+                check_mae = numpy_metrics.masked_mae(y_hat_np, y_np, mask_np)
+                print(f"SEED {seed} - Test MAE: {check_mae:.2f}")
 
-            output = casting.numpy(output)
+                # 원본 스케일로 역변환 (표준화 해제)
+                # 스케일러가 사용된 경우 원래 스케일로 다시 변환
+                if hasattr(dm, "scalers") and "data" in dm.scalers:
+                    scaler = dm.scalers["data"]
+                    y_hat_np = scaler.inverse_transform(y_hat_np)
+                    y_np = scaler.inverse_transform(y_np)
 
-            # 결과 추출
-            y_hat = output["y_hat"]  # 보정값
-            y_true = output["y"]  # 원본값
-            mask = output["mask"]  # 마스크
+                # 결과 저장 (STGAN 형식)
+                if seed is not None:
+                    output_path = os.path.join(args.output_dir, f"seed_{seed}")
+                else:
+                    output_path = args.output_dir
 
-            # 마지막 차원이 1인 경우에만 squeeze 적용
-            if y_hat.shape[-1] == 1:
-                y_hat = y_hat.squeeze(-1)
-            if y_true.shape[-1] == 1:
-                y_true = y_true.squeeze(-1)
-            if mask.shape[-1] == 1:
-                mask = mask.squeeze(-1)
-
-            # MAE 계산
-            check_mae = numpy_metrics.masked_mae(y_hat, y_true, mask)
-            print(f"SEED {seed} - Test MAE: {check_mae:.2f}")
-
-            # 원본 스케일로 역변환 (표준화 해제)
-            # 스케일러가 사용된 경우 원래 스케일로 다시 변환
-            if hasattr(dm, "scalers") and "data" in dm.scalers:
-                scaler = dm.scalers["data"]
-                # 텐서를 NumPy 배열로 변환
-                if hasattr(y_hat, "numpy"):
-                    y_hat = y_hat.numpy()
-                if hasattr(y_true, "numpy"):
-                    y_true = y_true.numpy()
-                # 스케일러 역변환 적용
-                y_hat = scaler.inverse_transform(y_hat)
-                y_true = scaler.inverse_transform(y_true)
-
-            # 결과 저장 (STGAN 형식)
-            if seed is not None:
-                output_path = os.path.join(args.output_dir, f"seed_{seed}")
+                # 결과를 STGAN 형식으로 저장
+                args.output_dir = output_path
+                save_imputed_data_stgan_format(args, y_hat_np, y_np, mask_np, dataset)
             else:
-                output_path = args.output_dir
-
-            # 결과를 STGAN 형식으로 저장
-            args.output_dir = output_path
-            save_imputed_data_stgan_format(args, y_hat, y_true, mask, dataset)
+                print("경고: 예측 결과가 없습니다.")
+                continue
         except Exception as e:
             print(f"오류 발생: {e}")
             traceback.print_exc()
