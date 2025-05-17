@@ -17,7 +17,6 @@ from tsl.data.preprocessing import StandardScaler
 from tsl.imputers import Imputer
 from tsl.nn.metrics import MaskedMAE, MaskedMetric, MaskedMRE, MaskedMSE
 from tsl.nn.models.imputation import GRINModel
-from tsl.ops.imputation import add_missing_values
 from tsl.utils import parser_utils
 from tsl.utils.parser_utils import ArgParser
 import yaml
@@ -49,10 +48,56 @@ def get_dataset(dataset_name: str, root_dir=None):
     if dataset_name == "bay":
         # STGAN 데이터 형식의 Bay 데이터셋 로드
         stgan_dataset = STGANBayDataset(root_dir=root_dir).load()
-        # 결측치 추가
-        return add_missing_values(
-            stgan_dataset, p_fault=p_fault, p_noise=p_noise, min_seq=12, max_seq=12 * 4, seed=56789
-        )
+
+        # 결측치를 직접 추가하는 로직 구현
+        # 원본 데이터 복사
+        data = stgan_dataset._target.copy()
+        mask = np.ones_like(data, dtype=bool)
+
+        # 시드 설정
+        seed = 56789
+        rng = np.random.RandomState(seed)
+
+        # 데이터 크기
+        time_steps, n_nodes, n_channels = data.shape
+
+        # 포인트 결측치 추가 (p_noise 확률로 랜덤하게 데이터 포인트 마스킹)
+        if p_noise > 0:
+            noise_mask = rng.rand(time_steps, n_nodes, n_channels) < p_noise
+            mask = mask & ~noise_mask
+
+        # 블록 결측치 추가 (p_fault 확률로 각 노드의 연속된 블록 마스킹)
+        if p_fault > 0:
+            # 각 노드에 대해 독립적으로 처리
+            for n in range(n_nodes):
+                # p_fault 확률로 결측이 시작되는 시점들 결정
+                fault_points = rng.rand(time_steps) < p_fault
+                fault_indices = np.where(fault_points)[0]
+
+                # 각 결측 시작점에 대해 min_seq에서 max_seq 사이의 랜덤한 길이로 마스킹
+                min_seq, max_seq = 12, 12 * 4
+                for idx in fault_indices:
+                    if idx >= time_steps:
+                        continue
+
+                    # 랜덤 길이 결정
+                    seq_len = rng.randint(min_seq, max_seq + 1)
+                    end_idx = min(idx + seq_len, time_steps)
+
+                    # 모든 채널에 대해 마스킹
+                    mask[idx:end_idx, n, :] = False
+
+        # 결측치 적용 (마스킹된 부분을 NaN으로 설정)
+        masked_data = data.copy()
+        masked_data[~mask] = np.nan
+
+        # 데이터셋 업데이트
+        stgan_dataset._target = masked_data
+        stgan_dataset._mask = mask
+        stgan_dataset._training_mask = mask.copy()
+        stgan_dataset._eval_mask = mask.copy()
+
+        return stgan_dataset
 
     raise ValueError(f"Invalid dataset name: {dataset_name}.")
 
@@ -117,7 +162,7 @@ def parse_args():
     return args
 
 
-def run_experiment(args):
+def run_experiment(args):  # noqa: C901
     # Set configuration and seed
     args = copy.deepcopy(args)
     if args.seed < 0:
@@ -160,23 +205,74 @@ def run_experiment(args):
 
     if is_spin or args.model_name == "grin":
         adj = dataset.get_connectivity(threshold=args.adj_threshold, include_self=False, force_symmetric=is_spin)
+        # PyTorch Geometric을 위한 edge_index 생성 (long 타입)
+        rows, cols = np.where(adj > 0)
+        edge_index = torch.tensor(np.array([rows, cols]), dtype=torch.long)
     else:
         adj = None
+        edge_index = None
 
     # instantiate dataset
     torch_dataset = ImputationDataset(
         *dataset.numpy(return_idx=True),
         training_mask=dataset.training_mask,
         eval_mask=dataset.eval_mask,
-        connectivity=adj,
+        connectivity=adj,  # 여기서는 adj 행렬 사용
         exogenous=exog_map,
         input_map=input_map,
         window=args.window,
         stride=args.stride,
     )
 
+    # PyTorch Geometric을 위한 edge_index를 torch_dataset에 저장
+    if edge_index is not None:
+        torch_dataset.edge_index = edge_index
+
     # get train/val/test indices
     splitter = dataset.get_splitter(val_len=args.val_len, test_len=args.test_len)
+
+    # TSL 라이브러리의 SpatioTemporalDataModule 클래스는 splitter.split() 메서드를 기대합니다.
+    # 반환된 splitter가 함수인 경우, 이를 처리하기 위한 래퍼 클래스 생성
+    class SplitterWrapper:
+        def __init__(self, split_fn):
+            self.split_fn = split_fn
+            self._splits = None
+
+        def split(self, dataset):
+            # 데이터셋의 인덱스를 가져오기
+            idx = dataset.idx if hasattr(dataset, "idx") else np.arange(len(dataset))
+            # 분할 함수 호출
+            split_masks = self.split_fn(idx)
+            # 각 데이터셋 유형에 해당하는 인덱스 저장
+            self._splits = {k: np.where(v)[0] for k, v in split_masks.items()}
+            return self._splits
+
+        def get_split(self, split):
+            if self._splits is None:
+                raise RuntimeError("You must call split() before get_split()")
+            return self._splits.get(split, None)
+
+        @property
+        def train_idxs(self):
+            if self._splits is None:
+                raise RuntimeError("You must call split() before accessing train_idxs")
+            return self._splits.get("train", None)
+
+        @property
+        def val_idxs(self):
+            if self._splits is None:
+                raise RuntimeError("You must call split() before accessing val_idxs")
+            return self._splits.get("val", None)
+
+        @property
+        def test_idxs(self):
+            if self._splits is None:
+                raise RuntimeError("You must call split() before accessing test_idxs")
+            return self._splits.get("test", None)
+
+    # splitter가 함수인 경우 래퍼로 감싸기
+    if callable(splitter) and not hasattr(splitter, "split"):
+        splitter = SplitterWrapper(splitter)
 
     scalers = {"data": StandardScaler(axis=(0, 1))}
 
@@ -195,6 +291,8 @@ def run_experiment(args):
         "u_size": 31,  # STGAN time_features는 31개 (7일 + 24시간)
         "output_size": dm.n_channels,
         "window_size": dm.window,
+        "h_size": dm.n_channels,  # 채널 수와 일치하도록 h_size 설정
+        "z_size": dm.n_channels,  # 채널 수와 일치하도록 z_size 설정
     }
 
     # model's inputs

@@ -57,7 +57,11 @@ class SPINImputer(Imputer):
         return super(SPINImputer, self).on_after_batch_transfer(batch, dataloader_idx)
 
     def training_step(self, batch, batch_idx):
-        injected_missing = batch.original_mask - batch.mask
+        # 불리언 뺄셈 대신 논리 XOR 연산 사용
+        # injected_missing = batch.original_mask - batch.mask
+        # 두 마스크에서 차이가 있는 부분만 True로 표시 (original_mask는 True, mask는 False인 위치)
+        injected_missing = torch.logical_and(batch.original_mask, torch.logical_not(batch.mask))
+
         if "target_nodes" in batch:
             injected_missing = injected_missing[..., batch.target_nodes, :]
         # batch.input.target_mask = injected_missing

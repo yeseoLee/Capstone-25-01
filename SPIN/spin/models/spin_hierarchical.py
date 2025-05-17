@@ -96,6 +96,10 @@ class SPINHierarchicalModel(nn.Module):
         if node_index is None:
             node_index = slice(None)
 
+        # edge_index가 정수형이 아닌 경우 변환
+        if edge_index is not None and edge_index.dtype != torch.long:
+            edge_index = edge_index.long()
+
         # POSITIONAL ENCODING #################################################
         # Obtain spatio-temporal positional encoding for every node-step pair #
         # in both observed and target sets. Encoding are obtained by jointly  #
