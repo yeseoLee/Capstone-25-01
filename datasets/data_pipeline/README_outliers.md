@@ -16,8 +16,10 @@
 
 ### 기본 사용법:
 
+다음 명령어로 이상치를 생성할 수 있습니다:
+
 ```bash
-python ./STGAN/data_pipeline/create_outliers.py --scenario point
+python ./datasets/data_pipeline/create_outliers.py --scenario point
 ```
 
 기본 설정으로는 PemsBay 데이터셋에 점 이상치를 생성합니다.
@@ -25,7 +27,7 @@ python ./STGAN/data_pipeline/create_outliers.py --scenario point
 ### 매개변수 설정:
 
 ```bash
-python ./STGAN/data_pipeline/create_outliers.py --dataset_name bay --output_dir ./STGAN/bay/outliers --scenario block --min_deviation 0.3 --max_deviation 0.6 --min_duration 10 --max_duration 30
+python ./datasets/data_pipeline/create_outliers.py --dataset_name bay --output_dir ./datasets/bay/outliers --scenario block --min_deviation 0.3 --max_deviation 0.6 --min_duration 10 --max_duration 30
 ```
 
 ### 매개변수 설명:
@@ -81,7 +83,7 @@ STGAN/bay/outliers/
 개별 데이터 포인트에 무작위로 편차를 추가합니다. 센서 오작동, 통신 오류 등으로 인한 일시적인 이상치를 시뮬레이션합니다.
 
 ```bash
-python ./STGAN/data_pipeline/create_outliers.py --scenario point --min_deviation 0.2 --max_deviation 0.5 --p_outlier 0.01
+python ./datasets/data_pipeline/create_outliers.py --scenario point --min_deviation 0.2 --max_deviation 0.5 --p_outlier 0.01
 ```
 
 ### 2. 블록 이상치 (Block Outlier)
@@ -89,7 +91,7 @@ python ./STGAN/data_pipeline/create_outliers.py --scenario point --min_deviation
 연속된 시간 구간에 걸쳐 편차를 추가합니다. 센서 고장, 교통 사고, 특별 행사 등으로 인한 지속적인 이상치를 시뮬레이션합니다.
 
 ```bash
-python ./STGAN/data_pipeline/create_outliers.py --scenario block --min_duration 10 --max_duration 30 --p_outlier 0.005
+python ./datasets/data_pipeline/create_outliers.py --scenario block --min_duration 10 --max_duration 30 --p_outlier 0.005
 ```
 
 ### 3. 맥락 이상치 (Contextual Outlier)
@@ -97,7 +99,7 @@ python ./STGAN/data_pipeline/create_outliers.py --scenario block --min_duration 
 특정 맥락(시간대, 요일 등)에서 비정상적인 패턴을 생성합니다. 비정상적인 교통 패턴 변화를 시뮬레이션합니다.
 
 ```bash
-python ./STGAN/data_pipeline/create_outliers.py --scenario contextual --replace_ratio 0.1
+python ./datasets/data_pipeline/create_outliers.py --scenario contextual --replace_ratio 0.1
 ```
 
 맥락 이상치는 다음과 같은 방식으로 생성됩니다:
@@ -119,17 +121,58 @@ python ./STGAN/data_pipeline/create_outliers.py --scenario contextual --replace_
 ### 1. 점 이상치 생성 (기본값)
 
 ```bash
-python ./STGAN/data_pipeline/create_outliers.py --scenario point
+python ./datasets/data_pipeline/create_outliers.py --scenario point
 ```
 
 ### 2. 블록 이상치 생성 (지속 시간 설정)
 
 ```bash
-python ./STGAN/data_pipeline/create_outliers.py --scenario block --min_duration 15 --max_duration 45
+python ./datasets/data_pipeline/create_outliers.py --scenario block --min_duration 15 --max_duration 45
 ```
 
 ### 3. 맥락 이상치 생성 (대체 비율 증가)
 
 ```bash
-python ./STGAN/data_pipeline/create_outliers.py --scenario contextual --replace_ratio 0.2
+python ./datasets/data_pipeline/create_outliers.py --scenario contextual --replace_ratio 0.2
+```
+
+## 시나리오별 실행 방법
+
+### 점 이상치
+
+점 이상치는 특정 시간대에 정상 값의 범위를 벗어난 갑작스러운 변동을 의미합니다.
+
+```bash
+python ./datasets/data_pipeline/create_outliers.py --scenario point --min_deviation 0.2 --max_deviation 0.5 --p_outlier 0.01
+```
+
+### 블록 이상치
+
+블록 이상치는 일정 기간 동안 정상 값의 범위를 벗어난 지속적인 변동을 의미합니다.
+
+```bash
+python ./datasets/data_pipeline/create_outliers.py --scenario block --min_duration 10 --max_duration 30 --p_outlier 0.005
+```
+
+### 맥락적 이상치
+
+맥락적 이상치는 정상 데이터 범위 내에 있지만 다른 시간대의 패턴이 현재 맥락과 맞지 않는 경우를 의미합니다.
+
+```bash
+python ./datasets/data_pipeline/create_outliers.py --scenario contextual --replace_ratio 0.1
+```
+
+## 다양한 예시
+
+다음은 이상치를 생성하기 위한 몇 가지 예시 명령어입니다:
+
+```bash
+# 점 이상치 (기본 설정)
+python ./datasets/data_pipeline/create_outliers.py --scenario point
+
+# 블록 이상치 (지속 시간 변경)
+python ./datasets/data_pipeline/create_outliers.py --scenario block --min_duration 15 --max_duration 45
+
+# 맥락적 이상치 (비율 변경)
+python ./datasets/data_pipeline/create_outliers.py --scenario contextual --replace_ratio 0.2
 ```

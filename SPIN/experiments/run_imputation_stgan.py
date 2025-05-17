@@ -119,7 +119,7 @@ def parse_args():
     parser.add_argument("--model-name", type=str, default="spin_h")
     parser.add_argument("--dataset-name", type=str, default="bay_block")
     parser.add_argument("--config", type=str, default="imputation/spin_h.yaml")
-    parser.add_argument("--root-dir", type=str, default=None, help="STGAN 데이터셋 경로")
+    parser.add_argument("--root-dir", type=str, default=None, help="datasets/bay 데이터셋 경로")
 
     # Splitting/aggregation params
     parser.add_argument("--val-len", type=float, default=0.1)

@@ -54,9 +54,9 @@ if opt["dataset"] == "bay":
     opt["num_feature"] = 6 * 2  # length of input feature
     opt["time_feature"] = 31  # length of time feature
 
-opt["save_path"] = opt["root_path"] + opt["dataset"] + "/checkpoint/"
-opt["data_path"] = opt["root_path"] + opt["dataset"] + "/data/"
-opt["result_path"] = opt["root_path"] + opt["dataset"] + "/result/"
+opt["save_path"] = opt["root_path"] + "datasets/" + opt["dataset"] + "/checkpoint/"
+opt["data_path"] = opt["root_path"] + "datasets/" + opt["dataset"] + "/data/"
+opt["result_path"] = opt["root_path"] + "datasets/" + opt["dataset"] + "/result/"
 
 opt["train_time"] = opt["train_time"] * opt["timestamp"] * 24
 if __name__ == "__main__":

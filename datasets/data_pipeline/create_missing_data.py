@@ -2,7 +2,7 @@
 STGAN 데이터셋에 결측치(마스킹)를 생성하고 저장하는 스크립트
 
 사용법:
-    python ./STGAN/data_pipeline/create_missing_data.py --dataset_name bay --output_dir ./STGAN/bay/masked --p_fault 0.0015 --p_noise 0.05
+    python ./datasets/data_pipeline/create_missing_data.py --dataset_name bay --output_dir ./datasets/bay/masked --p_fault 0.0015 --p_noise 0.05
 """  # noqa: E501
 
 import argparse
@@ -13,7 +13,7 @@ import numpy as np
 
 
 # STGAN 데이터 경로 정의
-STGAN_DATA_PATH = "./STGAN/bay/data"
+STGAN_DATA_PATH = "./datasets/bay/data"
 
 
 def create_missing_mask(  # noqa: C901
@@ -194,7 +194,7 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="STGAN 데이터셋에 결측치를 생성하는 스크립트")
     parser.add_argument("--dataset_name", type=str, default="bay", help="데이터셋 이름 (현재는 bay만 지원)")
-    parser.add_argument("--output_dir", type=str, default="./STGAN/bay/masked", help="출력 디렉토리 경로")
+    parser.add_argument("--output_dir", type=str, default="./datasets/bay/masked", help="출력 디렉토리 경로")
     parser.add_argument("--p_fault", type=float, default=0.0015, help="결함 확률 (연속적인 결측치를 생성하는 비율)")
     parser.add_argument("--p_noise", type=float, default=0.05, help="잡음 확률 (독립적인 결측치를 생성하는 비율)")
     parser.add_argument(

@@ -53,3 +53,8 @@ python main.py --dataset bay --outlier_threshold 0.1 --convert_outliers True
 - 이상치 임계값(`--outlier_threshold`)은 데이터셋 특성에 따라 적절히 조정해야 합니다.
 - 이상치 비율이 너무 높거나 낮은 경우 임계값을 재조정하는 것이 좋습니다.
 - 생성된 이상치 통계 정보를 확인하여 적절한 임계값을 찾는 것을 권장합니다.
+
+## 경로 변경 안내
+
+이 프로젝트는 이제 STGAN 디렉토리의 bay와 data_pipeline 대신 최상위 폴더의 datasets 디렉토리를 사용합니다.
+데이터 파일들은 `datasets/bay/data/` 디렉토리에 위치해야 하며, 결과는 `datasets/bay/result/` 디렉토리에 저장됩니다.

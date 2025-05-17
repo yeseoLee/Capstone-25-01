@@ -6,7 +6,7 @@ STGAN 데이터셋에 대한 SPIN 모델 추론 스크립트
 
 사용법:
     python experiments/run_inference_stgan.py --model-name spin_h --dataset-name bay_point
-    --exp-name [실험명] --root-dir [STGAN 데이터셋 경로] --output-dir [출력 경로]
+    --exp-name [실험명] --root-dir [datasets/bay 경로] --output-dir [출력 경로]
 
 추가 옵션:
     --p-fault: 블록 결측 확률 (기본값: 0.0)
@@ -120,7 +120,7 @@ def parse_args():
     parser.add_argument("--exp-name", type=str)
     parser.add_argument("--config", type=str, default="inference.yaml")
     parser.add_argument("--root", type=str, default="log")
-    parser.add_argument("--root-dir", type=str, default=None, help="STGAN 데이터셋 경로")
+    parser.add_argument("--root-dir", type=str, default=None, help="datasets/bay 데이터셋 경로")
     parser.add_argument("--output-dir", type=str, default="imputed_data", help="보정된 데이터를 저장할 경로")
 
     # Data sparsity params

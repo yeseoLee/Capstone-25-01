@@ -2,7 +2,7 @@
 STGAN 데이터셋에 이상치(outlier)를 생성하고 저장하는 스크립트
 
 사용법:
-    python ./STGAN/data_pipeline/create_outliers.py --dataset_name bay --output_dir ./STGAN/bay/outliers --scenario point
+    python ./datasets/data_pipeline/create_outliers.py --dataset_name bay --output_dir ./datasets/bay/outliers --scenario point
 """  # noqa: E501
 
 import argparse
@@ -14,7 +14,7 @@ import numpy as np
 
 
 # STGAN 데이터 경로 정의
-STGAN_DATA_PATH = "./STGAN/bay/data"
+STGAN_DATA_PATH = "./datasets/bay/data"
 
 
 class OutlierGenerator:
@@ -573,7 +573,7 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="STGAN 데이터셋에 이상치를 생성하는 스크립트")
     parser.add_argument("--dataset_name", type=str, default="bay", help="데이터셋 이름 (현재는 bay만 지원)")
-    parser.add_argument("--output_dir", type=str, default="./STGAN/bay/outliers", help="출력 디렉토리 경로")
+    parser.add_argument("--output_dir", type=str, default="./datasets/bay/outliers", help="출력 디렉토리 경로")
     parser.add_argument(
         "--scenario",
         type=str,

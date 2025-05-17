@@ -51,14 +51,14 @@ STGAN과 SPIN 모델은 각각 다른 데이터셋 형식을 사용하고 있어
 
 ```bash
 cd SPIN
-python experiments/run_imputation_stgan.py --root-dir /path/to/STGAN/bay --dataset-name bay_block
+python experiments/run_imputation_stgan.py --root-dir /path/to/datasets/bay --dataset-name bay_block
 ```
 
 주요 매개변수:
 
-- `--root-dir`: STGAN 데이터셋 경로 (기본값: 현재 작업 디렉토리의 'STGAN/bay')
+- `--root-dir`: STGAN 데이터셋 경로 (기본값: 현재 작업 디렉토리의 'datasets/bay')
 - `--dataset-name`: 데이터셋 이름과 결측치 패턴 (bay_point 또는 bay_block)
-- `--model-name`: 사용할 모델 (spin, spin_h, grin)
+- `--model-name`: 사용할 모델 (spin, spin_h)
 
 ### 2. 결측치 보정 결과 저장
 
@@ -66,7 +66,7 @@ python experiments/run_imputation_stgan.py --root-dir /path/to/STGAN/bay --datas
 
 ```bash
 cd SPIN
-python experiments/run_inference_stgan.py --root-dir /path/to/STGAN/bay --dataset-name bay_block --model-name spin_h --exp-name YOUR_EXPERIMENT_NAME --output-dir /path/to/save
+python experiments/run_inference_stgan.py --root-dir /path/to/datasets/bay --dataset-name bay_block --model-name spin_h --exp-name YOUR_EXPERIMENT_NAME --output-dir /path/to/save
 ```
 
 주요 매개변수:
