@@ -29,6 +29,11 @@ parser.add_argument("--cpu", type=bool, default=False)
 parser.add_argument("--cuda", type=bool, default=torch.cuda.is_available())
 parser.add_argument("--cuda_id", type=str, default="3")
 parser.add_argument("--seed", type=int, default=20)
+
+# 이상치 탐지 관련 인자 추가
+parser.add_argument("--outlier_threshold", type=float, default=0.1, help="Threshold for outlier detection based on MSE")
+parser.add_argument("--convert_outliers", type=bool, default=False, help="Whether to convert outliers to NaN")
+
 args = parser.parse_args()
 
 torch.manual_seed(args.seed)
