@@ -7,7 +7,7 @@ root: 'log'
 #exp_name: {exp_name}
 dataset_name: bay_point
 model_name: spin_h
-exp_name: 20250511T151035_360107715
+exp_name: 20250517T065012_342727711
 
 #### Data params ##############################################################
 p_fault: 0

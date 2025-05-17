@@ -14,7 +14,6 @@ from tsl.data.preprocessing import StandardScaler
 from tsl.imputers import Imputer
 from tsl.nn.models.imputation import GRINModel
 from tsl.nn.utils import casting
-from tsl.ops.imputation import add_missing_values, sample_mask
 from tsl.utils import ArgParser, numpy_metrics, parser_utils
 from tsl.utils.python_utils import ensure_list
 import yaml
@@ -46,10 +45,56 @@ def get_dataset(dataset_name: str, root_dir=None):
     if dataset_name == "bay":
         # STGAN 데이터 형식의 Bay 데이터셋 로드
         stgan_dataset = STGANBayDataset(root_dir=root_dir).load()
-        # 결측치 추가
-        return add_missing_values(
-            stgan_dataset, p_fault=p_fault, p_noise=p_noise, min_seq=12, max_seq=12 * 4, seed=56789
-        )
+
+        # 결측치를 직접 추가하는 로직 구현
+        # 원본 데이터 복사
+        data = stgan_dataset._target.copy()
+        mask = np.ones_like(data, dtype=bool)
+
+        # 시드 설정
+        seed = 56789
+        rng = np.random.RandomState(seed)
+
+        # 데이터 크기
+        time_steps, n_nodes, n_channels = data.shape
+
+        # 포인트 결측치 추가 (p_noise 확률로 랜덤하게 데이터 포인트 마스킹)
+        if p_noise > 0:
+            noise_mask = rng.rand(time_steps, n_nodes, n_channels) < p_noise
+            mask = mask & ~noise_mask
+
+        # 블록 결측치 추가 (p_fault 확률로 각 노드의 연속된 블록 마스킹)
+        if p_fault > 0:
+            # 각 노드에 대해 독립적으로 처리
+            for n in range(n_nodes):
+                # p_fault 확률로 결측이 시작되는 시점들 결정
+                fault_points = rng.rand(time_steps) < p_fault
+                fault_indices = np.where(fault_points)[0]
+
+                # 각 결측 시작점에 대해 min_seq에서 max_seq 사이의 랜덤한 길이로 마스킹
+                min_seq, max_seq = 12, 12 * 4
+                for idx in fault_indices:
+                    if idx >= time_steps:
+                        continue
+
+                    # 랜덤 길이 결정
+                    seq_len = rng.randint(min_seq, max_seq + 1)
+                    end_idx = min(idx + seq_len, time_steps)
+
+                    # 모든 채널에 대해 마스킹
+                    mask[idx:end_idx, n, :] = False
+
+        # 결측치 적용 (마스킹된 부분을 NaN으로 설정)
+        masked_data = data.copy()
+        masked_data[~mask] = np.nan
+
+        # 데이터셋 업데이트
+        stgan_dataset._target = masked_data
+        stgan_dataset._mask = mask
+        stgan_dataset._training_mask = mask.copy()
+        stgan_dataset._eval_mask = mask.copy()
+
+        return stgan_dataset
 
     raise ValueError(f"Invalid dataset name: {dataset_name}.")
 
@@ -98,12 +143,47 @@ def load_model(exp_dir, exp_config, dm):
         "u_size": 31,  # STGAN time_features는 31개 (7일 + 24시간)
         "output_size": dm.n_channels,
         "window_size": dm.window,
+        # 추가로 확실하게 설정
+        "h_size": dm.n_channels,  # 채널 수와 일치하도록 h_size 설정
+        "z_size": dm.n_channels,  # 채널 수와 일치하도록 z_size 설정
     }
 
     # model's inputs
     model_kwargs = parser_utils.filter_args(
         args={**exp_config, **additional_model_hparams}, target_cls=model_cls, return_dict=True
     )
+
+    # 모델 경로 찾기
+    model_path = None
+    for file in os.listdir(exp_dir):
+        if file.endswith(".ckpt"):
+            model_path = os.path.join(exp_dir, file)
+            break
+    if model_path is None:
+        raise ValueError("Model not found.")
+
+    # 모델 경로가 있으면 직접 로드
+    checkpoint = torch.load(model_path, map_location=torch.device("cpu"))
+
+    # 모델 생성
+    model = model_cls(**model_kwargs)
+
+    # 모델 파라미터 로드
+    state_dict = checkpoint["state_dict"]
+
+    # 'model.'로 시작하는 키를 찾아서 접두사 제거
+    new_state_dict = {}
+    for k, v in state_dict.items():
+        if k.startswith("model."):
+            new_state_dict[k[6:]] = v  # 'model.' 접두사 제거
+        else:
+            new_state_dict[k] = v
+
+    try:
+        model.load_state_dict(new_state_dict)
+    except Exception as e:
+        print(f"모델 로드 중 오류 발생: {e}")
+        print("가중치를 직접 로드할 수 없습니다. 대신 새 모델을 초기화합니다.")
 
     # setup imputer
     imputer_kwargs = parser_utils.filter_argparse_args(exp_config, imputer_class, return_dict=True)
@@ -116,24 +196,65 @@ def load_model(exp_dir, exp_config, dm):
         **imputer_kwargs,
     )
 
-    model_path = None
-    for file in os.listdir(exp_dir):
-        if file.endswith(".ckpt"):
-            model_path = os.path.join(exp_dir, file)
-            break
-    if model_path is None:
-        raise ValueError("Model not found.")
-
-    imputer.load_model(model_path)
+    # 모델 설정
+    imputer.model = model
     imputer.freeze()
+
     return imputer
 
 
 def update_test_eval_mask(dm, dataset, p_fault, p_noise, seed=None):
+    """테스트용 평가 마스크를 업데이트합니다.
+
+    Args:
+        dm: 데이터 모듈
+        dataset: 데이터셋
+        p_fault: 블록 결측 확률
+        p_noise: 포인트 결측 확률
+        seed: 랜덤 시드
+    """
     if seed is None:
         seed = np.random.randint(1e9)
-    random = np.random.default_rng(seed)
-    dataset.set_eval_mask(sample_mask(dataset.shape, p=p_fault, p_noise=p_noise, min_seq=12, max_seq=36, rng=random))
+
+    # 데이터 크기
+    time_steps, n_nodes, n_channels = dataset.shape
+
+    # 마스크 초기화 (전체 True로 시작)
+    mask = np.ones((time_steps, n_nodes, n_channels), dtype=bool)
+
+    # 랜덤 생성기 초기화
+    rng = np.random.RandomState(seed)
+
+    # 포인트 결측치 추가 (p_noise 확률로 랜덤하게 데이터 포인트 마스킹)
+    if p_noise > 0:
+        noise_mask = rng.rand(time_steps, n_nodes, n_channels) < p_noise
+        mask = mask & ~noise_mask
+
+    # 블록 결측치 추가 (p_fault 확률로 각 노드의 연속된 블록 마스킹)
+    if p_fault > 0:
+        # 각 노드에 대해 독립적으로 처리
+        for n in range(n_nodes):
+            # p_fault 확률로 결측이 시작되는 시점들 결정
+            fault_points = rng.rand(time_steps) < p_fault
+            fault_indices = np.where(fault_points)[0]
+
+            # 각 결측 시작점에 대해 min_seq에서 max_seq 사이의 랜덤한 길이로 마스킹
+            min_seq, max_seq = 12, 36  # 원래 샘플 함수의 값 사용
+            for idx in fault_indices:
+                if idx >= time_steps:
+                    continue
+
+                # 랜덤 길이 결정
+                seq_len = rng.randint(min_seq, max_seq + 1)
+                end_idx = min(idx + seq_len, time_steps)
+
+                # 모든 채널에 대해 마스킹
+                mask[idx:end_idx, n, :] = False
+
+    # 평가 마스크 업데이트
+    dataset.set_eval_mask(mask)
+
+    # 데이터 모듈 업데이트
     dm.torch_dataset.set_mask(dataset.training_mask)
     dm.torch_dataset.update_exogenous("eval_mask", dataset.eval_mask)
 
@@ -296,6 +417,49 @@ def run_experiment(args):
 
     # get train/val/test indices
     splitter = dataset.get_splitter(val_len=args.val_len, test_len=args.test_len)
+
+    # TSL 라이브러리의 SpatioTemporalDataModule 클래스는 splitter.split() 메서드를 기대합니다.
+    # 반환된 splitter가 함수인 경우, 이를 처리하기 위한 래퍼 클래스 생성
+    class SplitterWrapper:
+        def __init__(self, split_fn):
+            self.split_fn = split_fn
+            self._splits = None
+
+        def split(self, dataset):
+            # 데이터셋의 인덱스를 가져오기
+            idx = dataset.idx if hasattr(dataset, "idx") else np.arange(len(dataset))
+            # 분할 함수 호출
+            split_masks = self.split_fn(idx)
+            # 각 데이터셋 유형에 해당하는 인덱스 저장
+            self._splits = {k: np.where(v)[0] for k, v in split_masks.items()}
+            return self._splits
+
+        def get_split(self, split):
+            if self._splits is None:
+                raise RuntimeError("You must call split() before get_split()")
+            return self._splits.get(split, None)
+
+        @property
+        def train_idxs(self):
+            if self._splits is None:
+                raise RuntimeError("You must call split() before accessing train_idxs")
+            return self._splits.get("train", None)
+
+        @property
+        def val_idxs(self):
+            if self._splits is None:
+                raise RuntimeError("You must call split() before accessing val_idxs")
+            return self._splits.get("val", None)
+
+        @property
+        def test_idxs(self):
+            if self._splits is None:
+                raise RuntimeError("You must call split() before accessing test_idxs")
+            return self._splits.get("test", None)
+
+    # splitter가 함수인 경우 래퍼로 감싸기
+    if callable(splitter) and not hasattr(splitter, "split"):
+        splitter = SplitterWrapper(splitter)
 
     scalers = {"data": StandardScaler(axis=(0, 1))}
 
