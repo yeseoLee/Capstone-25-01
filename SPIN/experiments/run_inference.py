@@ -11,8 +11,6 @@ from tsl import config
 from tsl.data import ImputationDataset, SpatioTemporalDataModule
 from tsl.data.preprocessing import StandardScaler
 from tsl.datasets import PemsBay
-from tsl.imputers import Imputer
-from tsl.nn.models.imputation import GRINModel
 from tsl.nn.utils import casting
 from tsl.ops.imputation import add_missing_values, sample_mask
 from tsl.utils import ArgParser, numpy_metrics, parser_utils
@@ -25,8 +23,6 @@ def get_model_classes(model_str):
         model, filler = SPINModel, SPINImputer
     elif model_str == "spin_h":
         model, filler = SPINHierarchicalModel, SPINImputer
-    elif model_str == "grin":
-        model, filler = GRINModel, Imputer
     else:
         raise ValueError(f"Model {model_str} not available.")
     return model, filler
@@ -134,9 +130,6 @@ def run_experiment(args):
     args = copy.deepcopy(args)
     tsl.logger.disabled = True
 
-    # script flags
-    is_spin = args.model_name in ["spin", "spin_h"]
-
     ########################################
     # load config                          #
     ########################################
@@ -161,18 +154,11 @@ def run_experiment(args):
     ########################################
 
     # time embedding
-    if is_spin:
-        time_emb = dataset.datetime_encoded(["day", "week"]).values
-        exog_map = {"global_temporal_encoding": time_emb}
+    time_emb = dataset.datetime_encoded(["day", "week"]).values
+    exog_map = {"global_temporal_encoding": time_emb}
+    input_map = {"u": "temporal_encoding", "x": "data"}
 
-        input_map = {"u": "temporal_encoding", "x": "data"}
-    else:
-        exog_map = input_map = None
-
-    if is_spin or args.model_name == "grin":
-        adj = dataset.get_connectivity(threshold=args.adj_threshold, include_self=False, force_symmetric=is_spin)
-    else:
-        adj = None
+    adj = dataset.get_connectivity(threshold=args.adj_threshold, include_self=False, force_symmetric=True)
 
     # instantiate dataset
     torch_dataset = ImputationDataset(

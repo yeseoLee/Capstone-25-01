@@ -14,9 +14,7 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 from tsl import config, logger
 from tsl.data import ImputationDataset, SpatioTemporalDataModule
 from tsl.data.preprocessing import StandardScaler
-from tsl.imputers import Imputer
 from tsl.nn.metrics import MaskedMAE, MaskedMetric, MaskedMRE, MaskedMSE
-from tsl.nn.models.imputation import GRINModel
 from tsl.utils import parser_utils
 from tsl.utils.parser_utils import ArgParser
 import yaml
@@ -27,8 +25,6 @@ def get_model_classes(model_str):
         model, filler = SPINModel, SPINImputer
     elif model_str == "spin_h":
         model, filler = SPINHierarchicalModel, SPINImputer
-    elif model_str == "grin":
-        model, filler = GRINModel, Imputer
     else:
         raise ValueError(f"Model {model_str} not available.")
     return model, filler
@@ -170,9 +166,6 @@ def run_experiment(args):  # noqa: C901
     torch.set_num_threads(1)
     pl.seed_everything(args.seed)
 
-    # script flags
-    is_spin = args.model_name in ["spin", "spin_h"]
-
     model_cls, imputer_class = get_model_classes(args.model_name)
     dataset = get_dataset(args.dataset_name, root_dir=args.root_dir)
 
@@ -195,22 +188,14 @@ def run_experiment(args):  # noqa: C901
     ########################################
 
     # time embedding
-    if is_spin:
-        time_emb = dataset.datetime_encoded(["day", "week"]).values()
-        exog_map = {"global_temporal_encoding": time_emb}
+    time_emb = dataset.datetime_encoded(["day", "week"]).values()
+    exog_map = {"global_temporal_encoding": time_emb}
+    input_map = {"u": "temporal_encoding", "x": "data"}
 
-        input_map = {"u": "temporal_encoding", "x": "data"}
-    else:
-        exog_map = input_map = None
-
-    if is_spin or args.model_name == "grin":
-        adj = dataset.get_connectivity(threshold=args.adj_threshold, include_self=False, force_symmetric=is_spin)
-        # PyTorch Geometric을 위한 edge_index 생성 (long 타입)
-        rows, cols = np.where(adj > 0)
-        edge_index = torch.tensor(np.array([rows, cols]), dtype=torch.long)
-    else:
-        adj = None
-        edge_index = None
+    adj = dataset.get_connectivity(threshold=args.adj_threshold, include_self=False, force_symmetric=True)
+    # PyTorch Geometric을 위한 edge_index 생성 (long 타입)
+    rows, cols = np.where(adj > 0)
+    edge_index = torch.tensor(np.array([rows, cols]), dtype=torch.long)
 
     # instantiate dataset
     torch_dataset = ImputationDataset(
@@ -225,8 +210,7 @@ def run_experiment(args):  # noqa: C901
     )
 
     # PyTorch Geometric을 위한 edge_index를 torch_dataset에 저장
-    if edge_index is not None:
-        torch_dataset.edge_index = edge_index
+    torch_dataset.edge_index = edge_index
 
     # get train/val/test indices
     splitter = dataset.get_splitter(val_len=args.val_len, test_len=args.test_len)

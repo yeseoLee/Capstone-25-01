@@ -14,9 +14,7 @@ from tsl import config, logger
 from tsl.data import ImputationDataset, SpatioTemporalDataModule
 from tsl.data.preprocessing import StandardScaler
 from tsl.datasets import PemsBay
-from tsl.imputers import Imputer
 from tsl.nn.metrics import MaskedMAE, MaskedMetric, MaskedMRE, MaskedMSE
-from tsl.nn.models.imputation import GRINModel
 from tsl.nn.utils import casting
 from tsl.ops.imputation import add_missing_values
 from tsl.utils import numpy_metrics, parser_utils
@@ -29,8 +27,6 @@ def get_model_classes(model_str):
         model, filler = SPINModel, SPINImputer
     elif model_str == "spin_h":
         model, filler = SPINHierarchicalModel, SPINImputer
-    elif model_str == "grin":
-        model, filler = GRINModel, Imputer
     else:
         raise ValueError(f"Model {model_str} not available.")
     return model, filler
@@ -58,15 +54,6 @@ def get_scheduler(scheduler_name: str = None, args=None):
     if scheduler_name == "cosine":
         scheduler_class = CosineAnnealingLR
         scheduler_kwargs = {"eta_min": 0.1 * args.lr, "T_max": args.epochs}
-    # elif scheduler_name == "magic":
-    #     scheduler_class = CosineSchedulerWithRestarts
-    #     scheduler_kwargs = {
-    #         "num_warmup_steps": 12,
-    #         "min_factor": 0.1,
-    #         "linear_decay": 0.67,
-    #         "num_training_steps": args.epochs,
-    #         "num_cycles": args.epochs // 100,
-    #     }
     else:
         raise ValueError(f"Invalid scheduler name: {scheduler_name}.")
     return scheduler_class, scheduler_kwargs
@@ -127,9 +114,6 @@ def run_experiment(args):
     torch.set_num_threads(1)
     pl.seed_everything(args.seed)
 
-    # script flags
-    is_spin = args.model_name in ["spin", "spin_h"]
-
     model_cls, imputer_class = get_model_classes(args.model_name)
     dataset = get_dataset(args.dataset_name)
 
@@ -152,18 +136,11 @@ def run_experiment(args):
     ########################################
 
     # time embedding
-    if is_spin:
-        time_emb = dataset.datetime_encoded(["day", "week"]).values
-        exog_map = {"global_temporal_encoding": time_emb}
+    time_emb = dataset.datetime_encoded(["day", "week"]).values
+    exog_map = {"global_temporal_encoding": time_emb}
+    input_map = {"u": "temporal_encoding", "x": "data"}
 
-        input_map = {"u": "temporal_encoding", "x": "data"}
-    else:
-        exog_map = input_map = None
-
-    if is_spin or args.model_name == "grin":
-        adj = dataset.get_connectivity(threshold=args.adj_threshold, include_self=False, force_symmetric=is_spin)
-    else:
-        adj = None
+    adj = dataset.get_connectivity(threshold=args.adj_threshold, include_self=False, force_symmetric=True)
 
     # instantiate dataset
     torch_dataset = ImputationDataset(
