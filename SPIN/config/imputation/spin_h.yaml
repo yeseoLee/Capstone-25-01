@@ -12,7 +12,7 @@ stride: 1
 whiten_prob: [0.2, 0.5, 0.8]
 scale_target: True
 
-epochs: 30 # 300에서 30으로 감소
+epochs: 10 # 300에서 10으로 감소
 loss_fn: l1_loss
 lr_scheduler: cosine
 lr: 0.0008
