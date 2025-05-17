@@ -2,7 +2,7 @@ import os
 
 import numpy as np
 from tsl.datasets.prototypes import Dataset
-from tsl.ops.connectivity import adj_to_edge_index, threshold_connectivity
+from tsl.ops.connectivity import adj_to_edge_index
 
 
 class STGANBayDataset(Dataset):
@@ -129,7 +129,7 @@ class STGANBayDataset(Dataset):
             np.fill_diagonal(adj_matrix, 1.0)
 
         # 임계값 적용
-        if threshold is not None:
-            adj_matrix = threshold_connectivity(adj_matrix, threshold)
+        # if threshold is not None:
+        #     adj_matrix = threshold_connectivity(adj_matrix, threshold)
 
         return adj_matrix
