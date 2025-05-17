@@ -521,6 +521,12 @@ def run_experiment(args):
         # 스케일러가 사용된 경우 원래 스케일로 다시 변환
         if hasattr(dm, "scalers") and "data" in dm.scalers:
             scaler = dm.scalers["data"]
+            # 텐서를 NumPy 배열로 변환
+            if hasattr(y_hat, "numpy"):
+                y_hat = y_hat.numpy()
+            if hasattr(y_true, "numpy"):
+                y_true = y_true.numpy()
+            # 스케일러 역변환 적용
             y_hat = scaler.inverse_transform(y_hat)
             y_true = scaler.inverse_transform(y_true)
 
