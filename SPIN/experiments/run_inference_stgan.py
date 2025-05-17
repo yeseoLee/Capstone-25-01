@@ -400,20 +400,28 @@ def run_experiment(args):
 
     if is_spin or args.model_name == "grin":
         adj = dataset.get_connectivity(threshold=args.adj_threshold, include_self=False, force_symmetric=is_spin)
+        # PyTorch Geometric을 위한 edge_index 생성 (long 타입)
+        rows, cols = np.where(adj > 0)
+        edge_index = torch.tensor(np.array([rows, cols]), dtype=torch.long)
     else:
         adj = None
+        edge_index = None
 
     # instantiate dataset
     torch_dataset = ImputationDataset(
         *dataset.numpy(return_idx=True),
         training_mask=dataset.training_mask,
         eval_mask=dataset.eval_mask,
-        connectivity=adj,
+        connectivity=adj,  # 여기서는 adj 행렬 사용
         exogenous=exog_map,
         input_map=input_map,
         window=exp_config["window"],
         stride=exp_config["stride"],
     )
+
+    # PyTorch Geometric을 위한 edge_index를 torch_dataset에 저장
+    if edge_index is not None:
+        torch_dataset.edge_index = edge_index
 
     # get train/val/test indices
     splitter = dataset.get_splitter(val_len=args.val_len, test_len=args.test_len)
@@ -493,9 +501,17 @@ def run_experiment(args):
         output = casting.numpy(output)
 
         # 결과 추출
-        y_hat = output["y_hat"].squeeze(-1)  # 보정값
-        y_true = output["y"].squeeze(-1)  # 원본값
-        mask = output["mask"].squeeze(-1)  # 마스크
+        y_hat = output["y_hat"]  # 보정값
+        y_true = output["y"]  # 원본값
+        mask = output["mask"]  # 마스크
+
+        # 마지막 차원이 1인 경우에만 squeeze 적용
+        if y_hat.shape[-1] == 1:
+            y_hat = y_hat.squeeze(-1)
+        if y_true.shape[-1] == 1:
+            y_true = y_true.squeeze(-1)
+        if mask.shape[-1] == 1:
+            mask = mask.squeeze(-1)
 
         # MAE 계산
         check_mae = numpy_metrics.masked_mae(y_hat, y_true, mask)
