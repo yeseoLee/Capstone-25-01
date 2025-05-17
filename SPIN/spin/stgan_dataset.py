@@ -70,11 +70,21 @@ class STGANBayDataset(Dataset):
         # 인접 행렬의 에지 인덱스 형식으로 변환
         edge_index, edge_weight = adj_to_edge_index(adj_matrix)
 
-        # 데이터셋 정보 설정
-        super().load(target=self.tsl_data, connectivity=adj_matrix, edge_index=edge_index, edge_weight=edge_weight)
+        # 속성 직접 설정
+        self._target = self.tsl_data
+        self._connectivity = adj_matrix
+        self._edge_index = edge_index
+        self._edge_weight = edge_weight
+        self._mask = np.ones_like(self.tsl_data, dtype=bool)
+        self._training_mask = self._mask.copy()
+        self._eval_mask = self._mask.copy()
 
         # 시간 정보 추가
         self.add_exogenous("temporal_encoding", self.time_features)
+
+        # Dataset 클래스의 필수 속성 설정
+        self._idx = np.arange(self.tsl_data.shape[0])
+        self._t = np.arange(self.tsl_data.shape[0])
 
         return self
 
@@ -97,8 +107,7 @@ class STGANBayDataset(Dataset):
             # 요일 정보 (7일)
             result["week"] = self.time_features[:, :7]
 
-            # NumPy 배열을 반환하는 대신 TSL에서 사용하는 형식에 맞게 반환
-
+        # NumPy 배열을 반환하는 대신 TSL에서 사용하는 형식에 맞게 반환
         class EncodedDatetime:
             def __init__(self, data):
                 self.data = data
@@ -144,3 +153,9 @@ class STGANBayDataset(Dataset):
         #     adj_matrix = threshold_connectivity(adj_matrix, threshold)
 
         return adj_matrix
+
+    # Dataset 클래스의 필수 메서드 구현
+    def numpy(self, return_idx=False):
+        if return_idx:
+            return self._target, self._idx
+        return self._target
