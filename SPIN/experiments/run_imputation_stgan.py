@@ -1,11 +1,6 @@
 import copy
 import datetime
 import os
-import sys
-
-
-# 상위 디렉토리를 경로에 추가해 utils에 접근할 수 있도록 합니다.
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np
 import pytorch_lightning as pl
@@ -13,6 +8,7 @@ from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
 from spin.imputers import SPINImputer
 from spin.models import SPINHierarchicalModel, SPINModel
+from spin.stgan_dataset import STGANBayDataset
 import torch
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from tsl import config, logger
@@ -24,9 +20,6 @@ from tsl.nn.models.imputation import GRINModel
 from tsl.ops.imputation import add_missing_values
 from tsl.utils import parser_utils
 from tsl.utils.parser_utils import ArgParser
-
-# STGAN 데이터셋 로더 가져오기
-from utils.stgan_dataset import STGANBayDataset
 import yaml
 
 

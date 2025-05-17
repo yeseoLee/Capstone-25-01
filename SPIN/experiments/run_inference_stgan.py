@@ -1,15 +1,11 @@
 import copy
 import os
-import sys
-
-
-# 상위 디렉토리를 경로에 추가해 utils에 접근할 수 있도록 합니다.
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np
 import pytorch_lightning as pl
 from spin.imputers import SPINImputer
 from spin.models import SPINHierarchicalModel, SPINModel
+from spin.stgan_dataset import STGANBayDataset
 import torch
 import tsl
 from tsl import config
@@ -21,9 +17,6 @@ from tsl.nn.utils import casting
 from tsl.ops.imputation import add_missing_values, sample_mask
 from tsl.utils import ArgParser, numpy_metrics, parser_utils
 from tsl.utils.python_utils import ensure_list
-
-# STGAN 데이터셋 로더 가져오기
-from utils.stgan_dataset import STGANBayDataset
 import yaml
 
 
