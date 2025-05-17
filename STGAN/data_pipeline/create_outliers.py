@@ -107,7 +107,7 @@ class PointOutlierGenerator(OutlierGenerator):
         # 이상치 개수 계산
         outlier_count = np.sum(~self.outlier_mask) // (feature_dim * channel_dim)
         print(
-            f"생성된 점 이상치 개수: {outlier_count} / {time_len * node_len} ({outlier_count / (time_len * node_len) * 100:.2f}%)"
+            f"생성된 점 이상치 개수: {outlier_count} / {time_len * node_len} ({outlier_count / (time_len * node_len) * 100:.2f}%)"  # noqa: E501
         )
 
         return self.data, self.outlier_mask
