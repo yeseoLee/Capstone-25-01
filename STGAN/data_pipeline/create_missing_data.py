@@ -16,9 +16,9 @@ import numpy as np
 STGAN_DATA_PATH = "./STGAN/bay/data"
 
 
-def create_missing_mask(
+def create_missing_mask(  # noqa: C901
     data_shape, p_fault=0.0015, p_noise=0.05, mask_type="block", start_interval=0.0, end_interval=1.0
-):  # noqa: C901
+):
     """
     결측치 마스크 생성
 
@@ -141,7 +141,7 @@ def create_masked_dataset(
 
         # 마스크 생성
         print(
-            f"마스크 생성 중 (타입: {mask_type}, 결함: {p_fault}, 잡음: {p_noise}, 구간: {start_interval:.2f}-{end_interval:.2f})..."
+            f"마스크 생성 중 (타입: {mask_type}, 결함: {p_fault}, 잡음: {p_noise}, 구간: {start_interval:.2f}-{end_interval:.2f})..."  # noqa: E501
         )
         mask = create_missing_mask(data.shape, p_fault, p_noise, mask_type, start_interval, end_interval)
 

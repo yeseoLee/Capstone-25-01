@@ -244,7 +244,7 @@ class ContextualOutlierGenerator(OutlierGenerator):
         맥락적 이상치 생성
         """
         print(
-            f"맥락적 이상치 생성 중... (대체 비율: {self.replace_ratio:.2f}, 구간: {self.start_interval:.2f}-{self.end_interval:.2f})"
+            f"맥락적 이상치 생성 중... (대체 비율: {self.replace_ratio:.2f}, 구간: {self.start_interval:.2f}-{self.end_interval:.2f})"  # noqa: E501
         )
 
         # 시간 특성 분석
