@@ -23,6 +23,7 @@ class SPINModel(nn.Module):
         n_layers: int = 4,
         eta: int = 3,
         message_layers: int = 1,
+        support_stgan_format: bool = True,  # STGAN 데이터 형식 지원 여부
     ):
         super(SPINModel, self).__init__()
 
@@ -32,6 +33,7 @@ class SPINModel(nn.Module):
         self.n_layers = n_layers
         self.eta = eta
         self.temporal_self_attention = temporal_self_attention
+        self.support_stgan_format = support_stgan_format  # STGAN 형식 지원 플래그
 
         self.u_enc = PositionalEncoder(in_channels=u_size, out_channels=hidden_size, n_layers=2, n_nodes=n_nodes)
 
@@ -63,6 +65,22 @@ class SPINModel(nn.Module):
             self.encoder.append(encoder)
             self.readout.append(readout)
 
+    def _prepare_input(self, x):
+        """STGAN 형식의 4D 데이터를 3D 형식으로 변환하거나 그대로 사용"""
+        if self.support_stgan_format and len(x.shape) == 4:
+            # STGAN 형식: [시간, 노드, 특성, 채널] -> [시간, 노드, 특성*채널]
+            batch_size, n_nodes, n_features, n_channels = x.shape
+            x = x.reshape(batch_size, n_nodes, n_features * n_channels)
+        return x
+
+    def _prepare_mask(self, mask):
+        """STGAN 형식의 4D 마스크를 3D 형식으로 변환하거나 그대로 사용"""
+        if self.support_stgan_format and len(mask.shape) == 4:
+            # STGAN 형식: [시간, 노드, 특성, 채널] -> [시간, 노드, 특성*채널]
+            batch_size, n_nodes, n_features, n_channels = mask.shape
+            mask = mask.reshape(batch_size, n_nodes, n_features * n_channels)
+        return mask
+
     def forward(
         self,
         x: Tensor,
@@ -75,6 +93,10 @@ class SPINModel(nn.Module):
     ):
         if target_nodes is None:
             target_nodes = slice(None)
+
+        # STGAN 형식 지원 처리
+        x = self._prepare_input(x)
+        mask = self._prepare_mask(mask)
 
         # Whiten missing values
         x = x * mask
@@ -129,4 +151,5 @@ class SPINModel(nn.Module):
         parser.add_argument("--n-layers", type=int, default=4)
         parser.add_argument("--eta", type=int, default=3)
         parser.add_argument("--message-layers", type=int, default=1)
+        parser.add_argument("--support-stgan-format", type=bool, default=True)
         return parser
