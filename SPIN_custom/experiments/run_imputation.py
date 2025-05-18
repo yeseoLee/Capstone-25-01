@@ -121,7 +121,8 @@ class DirectSTGANDataset(Dataset):
 
         # 선택된 노드만 사용하는 경우
         if self.selected_nodes is not None:
-            print(f"선택된 노드 {len(self.selected_nodes)}개만 사용합니다. (전체 {full_data.shape[1]}개 중)")
+            logger.info(f"선택된 노드 {len(self.selected_nodes)}개만 사용합니다. (전체 {full_data.shape[1]}개 중)")
+            logger.info(f"selected_nodes: {self.selected_nodes}")
             self.data = full_data[:, self.selected_nodes, :, :]
 
             # 노드 인접 행렬 및 거리 행렬도 필터링
@@ -141,7 +142,8 @@ class DirectSTGANDataset(Dataset):
         for i in range(n_nodes):
             for j, neighbor in enumerate(self.node_adjacent[i]):
                 if j > 0:  # 첫 번째는 노드 자신일 수 있음
-                    adj_matrix[i, neighbor] = 1
+                    if 0 <= neighbor < n_nodes:  # 유효한 노드 인덱스인지 확인
+                        adj_matrix[i, neighbor] = 1
 
         # 인접 행렬의 에지 인덱스 형식으로 직접 변환
         rows, cols = np.where(adj_matrix > 0)
@@ -353,9 +355,10 @@ def get_dataset(dataset_name: str, root_dir=None, selected_nodes=None):
                     # 모든 채널과 특성에 대해 마스킹
                     mask[idx:end_idx, n, :, :] = False
 
-        # 결측치 적용 (마스킹된 부분을 NaN으로 설정)
+        # 결측치 적용 - NaN 대신 0으로 설정하고 마스크로 관리
         masked_data = data.copy()
-        masked_data[~mask] = np.nan
+        # NaN 대신 0으로 설정 (NaN은 표준화 과정에서 문제 발생)
+        masked_data[~mask] = 0
 
         # 데이터셋 업데이트
         stgan_dataset._target = masked_data
@@ -512,6 +515,20 @@ def run_experiment(args):  # noqa: C901
     dataset_memory = process.memory_info().rss / 1024 / 1024  # MB 단위
     logger.info(f"데이터셋 로드 완료 - 메모리 사용량: {dataset_memory:.2f} MB (증가: {dataset_memory - initial_memory:.2f} MB)")
 
+    # 데이터 품질 확인
+    data = dataset._target
+    num_nan = np.isnan(data).sum()
+    if num_nan > 0:
+        logger.warning(f"데이터에 {num_nan}개의 NaN 값이 있습니다. 이는 학습에 문제를 일으킬 수 있습니다.")
+        # NaN 값을 0으로 변경하고 마스크로 처리
+        logger.info("NaN 값을 0으로 대체하고 마스크 갱신")
+        mask = ~np.isnan(data)
+        data = np.nan_to_num(data, nan=0.0)
+        dataset._target = data
+        dataset._mask = dataset._mask & mask
+        dataset._training_mask = dataset._training_mask & mask
+        dataset._eval_mask = dataset._eval_mask & mask
+
     logger.info(args)
 
     ########################################
@@ -523,8 +540,32 @@ def run_experiment(args):  # noqa: C901
     logdir = os.path.join(config.log_dir, args.dataset_name, args.model_name, exp_name)
     # save config for logging
     os.makedirs(logdir, exist_ok=True)
+
+    # 기존 config_dict에 selected_nodes 정보 추가
+    config_dict = parser_utils.config_dict_from_args(args)
+
+    # selected_nodes 정보가 있는 경우 추가
+    if selected_nodes is not None:
+        config_dict["selected_nodes_count"] = len(selected_nodes)
+        config_dict["use_node_subset"] = True
+
+        # 노드가 너무 많을 경우 config 파일이 너무 커지지 않도록 처리
+        if len(selected_nodes) <= 100:  # 적당한 수의 노드만 config.yaml에 직접 포함
+            config_dict["selected_nodes"] = selected_nodes
+        else:
+            config_dict["selected_nodes"] = f"총 {len(selected_nodes)}개의 노드 (별도 파일 참조)"
+
+        # 선택된 노드 정보를 별도 파일로 저장
+        with open(os.path.join(logdir, "selected_nodes.txt"), "w") as f:
+            f.write(f"# 총 {len(selected_nodes)}개의 노드\n")
+            f.write(", ".join(map(str, selected_nodes)))
+    else:
+        config_dict["use_node_subset"] = False
+        config_dict["selected_nodes_count"] = "전체 노드 사용"
+
+    # config 파일 저장
     with open(os.path.join(logdir, "config.yaml"), "w") as fp:
-        yaml.dump(parser_utils.config_dict_from_args(args), fp, indent=4, sort_keys=True)
+        yaml.dump(config_dict, fp, indent=4, sort_keys=True)
 
     ########################################
     # data module                          #
@@ -625,9 +666,13 @@ def run_experiment(args):  # noqa: C901
     ########################################
 
     # 모델 차원을 명시적으로 설정
-    # STGAN 데이터셋의 특성*채널이 12임을 반영하여 h_size와 z_size를 12로 강제 설정
-    h_size = 12  # 매개변수에 관계없이 12로 고정
-    z_size = 12  # 매개변수에 관계없이 12로 고정
+    # STGAN 데이터셋의 특성*채널이 12임을 반영하여 h_size와 z_size를 적절히 설정
+    time_steps, n_nodes, n_features, n_channels = dataset.shape
+    total_channels = n_features * n_channels
+
+    # 처리할 수 있는 적절한 차원으로 설정
+    h_size = total_channels  # 채널 수와 일치
+    z_size = total_channels  # 채널 수와 일치
 
     additional_model_hparams = {
         "n_nodes": dm.n_nodes,
@@ -725,9 +770,32 @@ def run_experiment(args):  # noqa: C901
     # training                             #
     ########################################
 
+    # CustomModelCheckpoint 클래스 정의 - 노드 정보를 포함하여 저장
+    class NodeInfoModelCheckpoint(ModelCheckpoint):
+        def __init__(self, selected_nodes=None, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.selected_nodes = selected_nodes
+
+        def on_save_checkpoint(self, trainer, pl_module, checkpoint):
+            # 원래 ModelCheckpoint의 동작 수행
+            super().on_save_checkpoint(trainer, pl_module, checkpoint)
+
+            # selected_nodes 정보 추가
+            if self.selected_nodes is not None:
+                # 선택된 노드 정보를 적절히 저장
+                if len(self.selected_nodes) <= 100:
+                    # 노드 수가 적으면 직접 저장
+                    checkpoint["selected_nodes"] = self.selected_nodes
+                else:
+                    # 노드 수가 많으면 기본 정보만 저장
+                    checkpoint["selected_nodes_count"] = len(self.selected_nodes)
+                    checkpoint["selected_nodes_info"] = f"총 {len(self.selected_nodes)}개 노드 사용"
+            else:
+                checkpoint["selected_nodes_info"] = "전체 노드 사용"
+
     # callbacks
     early_stop_callback = EarlyStopping(monitor="val_mae", patience=args.patience, mode="min")
-    checkpoint_callback = ModelCheckpoint(dirpath=logdir, save_top_k=1, monitor="val_mae", mode="min")
+    checkpoint_callback = NodeInfoModelCheckpoint(selected_nodes=selected_nodes, dirpath=logdir, save_top_k=1, monitor="val_mae", mode="min")
 
     tb_logger = TensorBoardLogger(logdir, name="model")
 
@@ -768,6 +836,7 @@ def run_experiment(args):  # noqa: C901
     logger.info(f"최종 메모리 사용량: {final_memory:.2f} MB")
     logger.info(f"메모리 증가량: {final_memory - initial_memory:.2f} MB")
 
+    # 노드 정보 로깅
     if args.use_node_subset:
         # 선택된 노드 정보
         if args.node_list:
@@ -776,8 +845,33 @@ def run_experiment(args):  # noqa: C901
             node_info = f"전체의 {args.node_ratio*100:.1f}% ({len(selected_nodes)}개 노드)"
         logger.info(f"노드 서브셋 사용: {node_info}")
     else:
-        logger.info("전체 노드 사용")
+        node_info = "전체 노드 사용"
+        logger.info(node_info)
     logger.info("=" * 50)
+
+    # 실험 결과 및 노드 정보를 종합한 JSON 파일 생성
+    import json
+
+    # 결과 정보 수집
+    result_info = {
+        "experiment_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "experiment_name": exp_name,
+        "total_runtime_seconds": total_time,
+        "total_runtime_minutes": total_time / 60,
+        "memory_usage_mb": {"initial": initial_memory, "final": final_memory, "increase": final_memory - initial_memory},
+        "node_subset_info": {"use_node_subset": args.use_node_subset, "node_info": node_info},
+        "model_info": {"model_name": args.model_name, "dataset_name": args.dataset_name, "seed": args.seed, "best_model_path": checkpoint_callback.best_model_path},
+    }
+
+    # 선택된 노드가 있고 노드 수가 100개 이하인 경우 노드 목록 추가
+    if selected_nodes is not None and len(selected_nodes) <= 100:
+        result_info["node_subset_info"]["selected_nodes"] = selected_nodes
+    elif selected_nodes is not None:
+        result_info["node_subset_info"]["selected_nodes_count"] = len(selected_nodes)
+
+    # result.json 파일로 저장
+    with open(os.path.join(logdir, "result.json"), "w") as f:
+        json.dump(result_info, f, indent=2)
 
 
 if __name__ == "__main__":

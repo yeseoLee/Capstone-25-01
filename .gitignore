@@ -176,5 +176,7 @@ cython_debug/
 .DS_Store
 /datasets/bay/
 /SPIN/log/
+/SPIN/lightning_logs/
 /SPIN_custom/log/
+/SPIN_custom/lightning_logs/
 
