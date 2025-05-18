@@ -35,7 +35,6 @@ def load_pemsbay_dataset(p_fault=0.0015, p_noise=0.05, seed=42):
     print(f"데이터셋 크기: {dataset.shape}")
     print(f"노드 수: {dataset.n_nodes}")
     print(f"시간 간격: {dataset.freq}")
-    print(f"시간 범위: {dataset.start_date} ~ {dataset.end_date}")
 
     # 결측치 추가
     print(f"결측치 추가 중... (p_fault={p_fault}, p_noise={p_noise}, seed={seed})")
@@ -55,13 +54,13 @@ def load_pemsbay_dataset(p_fault=0.0015, p_noise=0.05, seed=42):
     return dataset_with_missing
 
 
-def save_pemsbay_data(dataset, output_dir="./data"):
+def save_pemsbay_data(dataset, output_dir="./bay/data"):
     """
     PemsBay 데이터셋을 NumPy 형식으로 저장합니다.
 
     Args:
         dataset: 저장할 PemsBay 데이터셋
-        output_dir: 저장할 디렉토리 경로 (기본값: "./data")
+        output_dir: 저장할 디렉토리 경로 (기본값: "./bay/data")
     """
     os.makedirs(output_dir, exist_ok=True)
 
@@ -127,7 +126,7 @@ if __name__ == "__main__":
 
     # 데이터셋 저장
     print("\n=== 블록 결측치 데이터셋 저장 ===")
-    save_pemsbay_data(block_dataset, output_dir="./STGAN_tsl/data/block")
+    save_pemsbay_data(block_dataset, output_dir="./bay/data/block")
 
     print("\n=== 포인트 결측치 데이터셋 저장 ===")
-    save_pemsbay_data(point_dataset, output_dir="./STGAN_tsl/data/point")
+    save_pemsbay_data(point_dataset, output_dir="./bay/data/point")

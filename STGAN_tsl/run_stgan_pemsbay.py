@@ -10,20 +10,15 @@ STGAN 모델을 이용한 PemsBay 데이터셋 실험 스크립트
 
 import argparse
 import os
-import sys
-
-
-# STGAN 모듈 경로 추가
-sys.path.append(".")
-
-# STGAN 모듈 임포트
-from STGAN.gan_model import STGAN
-from STGAN.load_data import STGANDataset
-from STGAN.tester import Tester
-from STGAN.trainer import Trainer
 
 # TSL 데이터셋 변환 모듈 임포트
-from STGAN_tsl.convert_format import pemsbay_with_missing_to_stgan_format
+from convert_format import pemsbay_with_missing_to_stgan_format
+
+# STGAN_tsl 모듈 임포트
+from gan_model import Generator
+from stgan_dataset import STGANDataset
+from tester import Tester
+from trainer import Trainer
 
 
 def prepare_pemsbay_dataset(args):
@@ -45,7 +40,7 @@ def prepare_pemsbay_dataset(args):
         raise ValueError(f"지원하지 않는 결측치 유형: {args.missing_type}")
 
     # STGAN 형식으로 변환된 데이터셋 경로
-    data_dir = f"./STGAN_tsl/data/stgan_format_{args.missing_type}"
+    data_dir = f"./bay/data/stgan_format_{args.missing_type}"
 
     # 데이터셋이 없으면 생성
     if not os.path.exists(data_dir) or args.force_regenerate:
@@ -72,7 +67,7 @@ def train_stgan_model(args, data_dir):
     dataset = STGANDataset(data_dir=data_dir)
 
     # STGAN 모델 생성
-    stgan = STGAN(
+    stgan = Generator(
         time_step=args.time_steps,  # 시간 창 크기
         node_count=dataset.n_nodes,  # 노드 수
         feature_size=dataset.n_features,  # 특성 수
@@ -98,7 +93,7 @@ def train_stgan_model(args, data_dir):
     )
 
     # 로그 및 모델 저장 디렉토리
-    model_dir = f"./STGAN_tsl/models/pemsbay_{args.missing_type}"
+    model_dir = f"./bay/checkpoint/pemsbay_{args.missing_type}"
     os.makedirs(model_dir, exist_ok=True)
 
     # 모델 학습
@@ -122,7 +117,7 @@ def test_stgan_model(args, data_dir, model_dir):
     dataset = STGANDataset(data_dir=data_dir)
 
     # STGAN 모델 생성
-    stgan = STGAN(
+    stgan = Generator(
         time_step=args.time_steps,
         node_count=dataset.n_nodes,
         feature_size=dataset.n_features,
@@ -166,7 +161,7 @@ def test_stgan_model(args, data_dir, model_dir):
     print(f"RMSE: {rmse:.4f}")
 
     # 결과 저장
-    result_dir = f"./STGAN_tsl/results/pemsbay_{args.missing_type}"
+    result_dir = f"./bay/result/pemsbay_{args.missing_type}"
     os.makedirs(result_dir, exist_ok=True)
 
     result_file = os.path.join(result_dir, "metrics.txt")
@@ -227,9 +222,9 @@ def main():
     args = parse_args()
 
     # 디렉토리 생성
-    os.makedirs("./STGAN_tsl/data", exist_ok=True)
-    os.makedirs("./STGAN_tsl/models", exist_ok=True)
-    os.makedirs("./STGAN_tsl/results", exist_ok=True)
+    os.makedirs("./bay/data", exist_ok=True)
+    os.makedirs("./bay/checkpoint", exist_ok=True)
+    os.makedirs("./bay/result", exist_ok=True)
 
     # PemsBay 데이터셋 준비
     data_dir = prepare_pemsbay_dataset(args)
@@ -237,7 +232,7 @@ def main():
     # 테스트만 수행하는 경우
     if args.test_only:
         if args.model_dir is None:
-            model_dir = f"./STGAN_tsl/models/pemsbay_{args.missing_type}"
+            model_dir = f"./bay/checkpoint/pemsbay_{args.missing_type}"
         else:
             model_dir = args.model_dir
 

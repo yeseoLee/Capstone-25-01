@@ -109,3 +109,28 @@ python STGAN_tsl/run_stgan_pemsbay.py --missing_type block --test_only
 ## 라이센스
 
 MIT 
+
+## 변경 사항 안내
+
+이 모듈은 이제 STGAN 폴더로부터 독립적으로 동작합니다. 필요한 모든 클래스와 함수들이 STGAN_tsl 폴더 내부에 직접 구현되어 있습니다.
+
+- `gan_model.py`: STGAN 모델 구현 (Generator, Discriminator 등)
+- `stgan_dataset.py`: 데이터셋 로더 클래스
+- `trainer.py`: 모델 학습 클래스
+- `tester.py`: 모델 테스트 및 이상치 탐지 클래스
+- `convert_format.py`: PemsBay 데이터셋을 STGAN 형식으로 변환
+
+## 경로 변경 안내
+
+이 프로젝트는 이제 STGAN_tsl 디렉토리의 데이터 대신 최상위 폴더의 datasets 디렉토리를 사용합니다.
+데이터 파일들은 `datasets/bay/data/` 디렉토리에 위치해야 하며, 결과는 `datasets/bay/result/` 디렉토리에 저장됩니다.
+
+실행 방법:
+```bash
+python STGAN_tsl/run_stgan_pemsbay.py --missing_type block --epochs 100 --batch_size 64
+```
+
+또는 블록 결측치 대신 포인트 결측치를 사용하려면:
+```bash
+python STGAN_tsl/run_stgan_pemsbay.py --missing_type point --epochs 100 --batch_size 64
+``` 

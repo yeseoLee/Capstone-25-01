@@ -14,7 +14,7 @@ import numpy as np
 from tsl.datasets import PemsBay
 
 
-def pemsbay_to_stgan_format(output_dir="./STGAN_tsl/data/stgan_format"):
+def pemsbay_to_stgan_format(output_dir="./bay/data/stgan_format"):
     """
     PemsBay 데이터셋을 STGAN 형식으로 변환하여 저장합니다.
 
@@ -90,7 +90,7 @@ def pemsbay_to_stgan_format(output_dir="./STGAN_tsl/data/stgan_format"):
 
 
 def pemsbay_with_missing_to_stgan_format(
-    p_fault=0.0015, p_noise=0.05, seed=42, output_dir="./STGAN_tsl/data/stgan_format_missing"
+    p_fault=0.0015, p_noise=0.05, seed=42, output_dir="./bay/data/stgan_format_missing"
 ):
     """
     결측치가 있는 PemsBay 데이터셋을 STGAN 형식으로 변환하여 저장합니다.
@@ -183,8 +183,8 @@ if __name__ == "__main__":
 
     # 블록 결측치가 있는 PemsBay 데이터셋을 STGAN 형식으로 변환
     print("\n=== 블록 결측치가 있는 PemsBay 데이터셋을 STGAN 형식으로 변환 ===")
-    pemsbay_with_missing_to_stgan_format(p_fault=0.0015, p_noise=0.05, output_dir="./STGAN_tsl/data/stgan_format_block")
+    pemsbay_with_missing_to_stgan_format(p_fault=0.0015, p_noise=0.05, output_dir="./bay/data/stgan_format_block")
 
     # 포인트 결측치가 있는 PemsBay 데이터셋을 STGAN 형식으로 변환
     print("\n=== 포인트 결측치가 있는 PemsBay 데이터셋을 STGAN 형식으로 변환 ===")
-    pemsbay_with_missing_to_stgan_format(p_fault=0.0, p_noise=0.25, output_dir="./STGAN_tsl/data/stgan_format_point")
+    pemsbay_with_missing_to_stgan_format(p_fault=0.0, p_noise=0.25, output_dir="./bay/data/stgan_format_point")
