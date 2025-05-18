@@ -1,0 +1,32 @@
+##########################        SPIN CONFIG        ##########################
+
+#### Dataset params ###########################################################
+#dataset_name: [bay_point, bay_bock]
+dataset_name: bay_point
+val_len: 0.1
+
+window: 12  # 24에서 12로 감소
+stride: 1
+
+#### Training params ##########################################################
+whiten_prob: [0.2, 0.5, 0.8]
+scale_target: True
+
+epochs: 300
+loss_fn: l1_loss
+lr_scheduler: cosine
+lr: 0.0008
+patience: 40
+precision: 16
+batch_size: 4  # 8에서 4로 감소
+split_batch_in: 2
+batches_epoch: 150  # 300에서 150으로 감소
+
+#### Model params #############################################################
+model_name: 'spin'
+hidden_size: 16  # 32에서 16으로 감소
+eta: 2  # 3에서 2로 감소
+n_layers: 2  # 4에서 2로 감소
+message_layers: 1
+temporal_self_attention: True
+reweight: 'softmax'

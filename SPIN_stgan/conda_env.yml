@@ -1,0 +1,28 @@
+name: spin
+channels:
+  - pytorch
+  - pyg
+  - defaults
+  - conda-forge
+dependencies:
+  - pip
+  - pyg>=2.0
+  - python=3.8
+  - pytorch>=1.9
+  - torchvision
+  - torchaudio
+  - wheel
+  - blosc
+  - lzo
+  - hdf5
+  - pytables
+  - pip:
+      - einops
+      - pytorch-lightning==1.5
+      - scikit-learn
+      - pandas==1.4.4
+      - matplotlib
+      # - torch_spatiotemporal==0.1.1
+      - "git+https://github.com/yeseoLee/tsl.git@main#egg=torch-spatiotemporal"
+      # - torch_sparse
+      # - torch_scatter
