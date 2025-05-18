@@ -1,7 +1,7 @@
 ##########################        SPIN-H CONFIG        ########################
 
 #### Dataset params ###########################################################
-#dataset_name: [bay_point, bay_bock]
+#dataset_name: [bay_point, bay_block]
 dataset_name: bay_point
 val_len: 0.1
 
@@ -15,7 +15,7 @@ scale_target: True
 epochs: 10 # 300에서 10으로 감소
 loss_fn: l1_loss
 lr_scheduler: cosine
-lr: 0.0008
+lr: 0.0016 # 0.0008
 patience: 40
 precision: 16
 batch_size: 4  # 8에서 4로 감소

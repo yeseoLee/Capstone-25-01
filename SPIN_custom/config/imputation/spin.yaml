@@ -1,7 +1,7 @@
 ##########################        SPIN CONFIG        ##########################
 
 #### Dataset params ###########################################################
-#dataset_name: [bay_point, bay_bock]
+#dataset_name: [bay_point, bay_block]
 dataset_name: bay_point
 val_len: 0.1
 

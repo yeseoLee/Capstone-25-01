@@ -2,12 +2,12 @@
 
 #### Experiment params ########################################################
 root: 'log'
-#dataset_name: [bay_point, bay_bock]
+#dataset_name: [bay_point, bay_block]
 #model_name: [spin, spin_h]
 #exp_name: {exp_name}
 dataset_name: bay_point
 model_name: spin_h
-exp_name: 20250517T065012_342727711
+exp_name: 20250518T220707_359413000
 
 #### Data params ##############################################################
 p_fault: 0
@@ -15,4 +15,4 @@ p_noise: 0.95  # [0.5, 0.75, 0.95]
 test_mask_seed: [1043, 2043, 3043, 4043, 5043]
 
 #### Windowing params #########################################################
-batch_size: 128
+batch_size: 32 # 128
