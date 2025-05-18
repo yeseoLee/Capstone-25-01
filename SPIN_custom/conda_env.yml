@@ -16,6 +16,7 @@ dependencies:
   - lzo
   - hdf5
   - pytables
+  - psutil
   - pip:
       - einops
       - pytorch-lightning==1.5

@@ -363,9 +363,7 @@ def load_model(exp_dir, exp_config, dm):
     }
 
     # model's inputs
-    model_kwargs = parser_utils.filter_args(
-        args={**exp_config, **additional_model_hparams}, target_cls=model_cls, return_dict=True
-    )
+    model_kwargs = parser_utils.filter_args(args={**exp_config, **additional_model_hparams}, target_cls=model_cls, return_dict=True)
 
     # setup imputer
     imputer_kwargs = parser_utils.filter_argparse_args(exp_config, imputer_class, return_dict=True)
@@ -482,7 +480,7 @@ def run_experiment(args):  # noqa: C901
     # 4D 데이터를 3D로 변환
     data, idx = dataset.numpy(return_idx=True)
     # 데이터 형상 출력 (디버깅용)
-    print(f"원본 데이터 형상: {data.shape}")
+    # print(f"원본 데이터 형상: {data.shape}")
 
     # 4D -> 3D 변환: [시간, 노드, 특성, 채널] -> [시간, 노드, 특성*채널]
     time_steps, n_nodes, n_features, n_channels = data.shape
@@ -492,7 +490,7 @@ def run_experiment(args):  # noqa: C901
     training_mask_reshaped = dataset.training_mask.reshape(time_steps, n_nodes, n_features * n_channels)
     eval_mask_reshaped = dataset.eval_mask.reshape(time_steps, n_nodes, n_features * n_channels)
 
-    print(f"변환된 데이터 형상: {data_reshaped.shape}")
+    # print(f"변환된 데이터 형상: {data_reshaped.shape}")
 
     # instantiate dataset
     torch_dataset = ImputationDataset(
@@ -552,9 +550,7 @@ def run_experiment(args):  # noqa: C901
 
     scalers = {"data": StandardScaler(axis=(0, 1))}
 
-    dm = SpatioTemporalDataModule(
-        torch_dataset, scalers=scalers, splitter=SplitterWrapper(splitter), batch_size=args.batch_size
-    )
+    dm = SpatioTemporalDataModule(torch_dataset, scalers=scalers, splitter=SplitterWrapper(splitter), batch_size=args.batch_size)
     dm.setup()
 
     ########################################

@@ -37,11 +37,13 @@ class DirectSTGANDataset(Dataset):
     데이터 형식 변환 없이 원본 형태로 사용합니다.
     """
 
-    def __init__(self, root_dir=None):
+    def __init__(self, root_dir=None, selected_nodes=None):
         """
         Args:
             root_dir: STGAN 데이터셋이 있는 디렉토리 경로
                 기본값은 현재 작업 디렉토리의 '../datasets/bay'입니다.
+            selected_nodes: 사용할 노드의 인덱스 리스트 (메모리 사용량 줄이기 위함)
+                None이면 모든 노드 사용, 리스트이면 해당 인덱스의 노드만 사용
         """
         super().__init__()
 
@@ -51,6 +53,7 @@ class DirectSTGANDataset(Dataset):
         self._root_dir = root_dir
         self._data_dir = os.path.join(root_dir, "data")
         self._exogenous = {}
+        self.selected_nodes = selected_nodes
 
     @property
     def root_dir(self):
@@ -111,15 +114,28 @@ class DirectSTGANDataset(Dataset):
         node_dist_path = os.path.join(self.data_dir, "node_dist.txt")
 
         # 교통 데이터 로드 (time, node, feature, channel)
-        self.data = np.load(data_path)
+        full_data = np.load(data_path)
         self.time_features = np.loadtxt(time_features_path)
-        self.node_adjacent = np.loadtxt(node_adjacent_path, dtype=np.int32)
-        self.node_dist = np.loadtxt(node_dist_path)
+        full_node_adjacent = np.loadtxt(node_adjacent_path, dtype=np.int32)
+        full_node_dist = np.loadtxt(node_dist_path)
+
+        # 선택된 노드만 사용하는 경우
+        if self.selected_nodes is not None:
+            print(f"선택된 노드 {len(self.selected_nodes)}개만 사용합니다. (전체 {full_data.shape[1]}개 중)")
+            self.data = full_data[:, self.selected_nodes, :, :]
+
+            # 노드 인접 행렬 및 거리 행렬도 필터링
+            self.node_adjacent = self._filter_adjacency(full_node_adjacent, self.selected_nodes)
+            self.node_dist = full_node_dist[np.ix_(self.selected_nodes, self.selected_nodes)]
+        else:
+            self.data = full_data
+            self.node_adjacent = full_node_adjacent
+            self.node_dist = full_node_dist
 
         # STGAN 원본 형식 그대로 사용
         self._target = self.data
 
-        # 인접 행렬 생성
+        # 선택된 노드에 기반한 인접 행렬 생성
         n_nodes = self.data.shape[1]
         adj_matrix = np.zeros((n_nodes, n_nodes))
         for i in range(n_nodes):
@@ -148,6 +164,41 @@ class DirectSTGANDataset(Dataset):
         self._t = np.arange(self.data.shape[0])
 
         return self
+
+    def _filter_adjacency(self, full_adjacency, selected_nodes):
+        """전체 인접 리스트에서 선택된 노드만 포함하는 새로운 인접 리스트 생성
+
+        Args:
+            full_adjacency: 전체 노드의 인접 리스트
+            selected_nodes: 선택된 노드 인덱스 리스트
+
+        Returns:
+            filtered_adjacency: 선택된 노드만 포함하는 인접 리스트
+        """
+        # 선택된 노드 인덱스를 매핑하는 딕셔너리 생성
+        node_mapping = {old_idx: new_idx for new_idx, old_idx in enumerate(selected_nodes)}
+
+        # 새로운 인접 리스트 생성
+        filtered_adjacency = np.zeros((len(selected_nodes), full_adjacency.shape[1]), dtype=np.int32)
+
+        # 각 선택된 노드에 대해
+        for new_idx, old_idx in enumerate(selected_nodes):
+            # 원래 인접 리스트 가져오기
+            neighbors = full_adjacency[old_idx]
+
+            # 선택된 노드에 속하는 이웃만 새로운 인덱스로 변환
+            filtered_neighbors = []
+            for neighbor in neighbors:
+                if neighbor in node_mapping:
+                    filtered_neighbors.append(node_mapping[neighbor])
+                else:
+                    # 선택되지 않은 이웃은 -1로 표시 (나중에 제거)
+                    filtered_neighbors.append(-1)
+
+            # 필터링된 인접 리스트 저장
+            filtered_adjacency[new_idx, : len(filtered_neighbors)] = filtered_neighbors
+
+        return filtered_adjacency
 
     def add_exogenous(self, name, data, axis=0):
         """외부 데이터 추가"""
@@ -249,7 +300,7 @@ class DirectSTGANDataset(Dataset):
         return splitter
 
 
-def get_dataset(dataset_name: str, root_dir=None):
+def get_dataset(dataset_name: str, root_dir=None, selected_nodes=None):
     # STGAN 데이터셋 사용
     if dataset_name.endswith("_point"):
         p_fault, p_noise = 0.0, 0.25
@@ -261,8 +312,8 @@ def get_dataset(dataset_name: str, root_dir=None):
         raise ValueError(f"Invalid dataset name: {dataset_name}.")
 
     if dataset_name == "bay":
-        # 원본 STGAN 데이터 형식을 직접 로드
-        stgan_dataset = DirectSTGANDataset(root_dir=root_dir).load()
+        # 원본 STGAN 데이터 형식을 직접 로드 (선택된 노드만 사용하는 옵션 추가)
+        stgan_dataset = DirectSTGANDataset(root_dir=root_dir, selected_nodes=selected_nodes).load()
 
         # 결측치를 직접 추가하는 로직 구현
         # 원본 데이터 복사
@@ -369,6 +420,11 @@ def parse_args():
     parser.add_argument("--config", type=str, default="imputation/spin_h.yaml")
     parser.add_argument("--root-dir", type=str, default=None, help="datasets/bay 데이터셋 경로")
 
+    # 노드 선택 관련 인수 추가
+    parser.add_argument("--use-node-subset", action="store_true", help="일부 노드만 사용하여 메모리 사용량 감소")
+    parser.add_argument("--node-ratio", type=float, default=0.5, help="전체 노드 중 사용할 비율 (0.0-1.0)")
+    parser.add_argument("--node-list", type=str, default=None, help="사용할 노드 인덱스 목록 (쉼표로 구분)")
+
     # Splitting/aggregation params
     parser.add_argument("--val-len", type=float, default=0.1)
     parser.add_argument("--test-len", type=float, default=0.2)
@@ -396,17 +452,32 @@ def parse_args():
     parser = ImputationDataset.add_argparse_args(parser)
 
     args = parser.parse_args()
-    if args.config is not None:
-        cfg_path = os.path.join(config.config_dir, args.config)
-        with open(cfg_path, "r") as fp:
-            config_args = yaml.load(fp, Loader=yaml.FullLoader)
-        for arg in config_args:
-            setattr(args, arg, config_args[arg])
+
+    # 설정 파일이 있는 경우 해당 내용으로 덮어쓰기
+    if args.config:
+        if not os.path.isfile(args.config):
+            cfg_path = os.path.join(config.config_dir, args.config)
+            with open(cfg_path, "r") as fp:
+                config_args = yaml.load(fp, Loader=yaml.FullLoader)
+            for arg in config_args:
+                setattr(args, arg, config_args[arg])
 
     return args
 
 
 def run_experiment(args):  # noqa: C901
+    # 시작 시간 기록
+    import os as os_util
+    import time
+
+    import psutil
+
+    start_time = time.time()
+    process = psutil.Process(os_util.getpid())
+    initial_memory = process.memory_info().rss / 1024 / 1024  # MB 단위
+
+    logger.info(f"실험 시작 - 초기 메모리 사용량: {initial_memory:.2f} MB")
+
     # Set configuration and seed
     args = copy.deepcopy(args)
     if args.seed < 0:
@@ -415,7 +486,31 @@ def run_experiment(args):  # noqa: C901
     pl.seed_everything(args.seed)
 
     model_cls, imputer_class = get_model_classes(args.model_name)
-    dataset = get_dataset(args.dataset_name, root_dir=args.root_dir)
+
+    # 노드 서브셋 옵션 처리
+    selected_nodes = None
+    if args.use_node_subset:
+        # 지정된 노드 목록이 있는 경우
+        if args.node_list:
+            selected_nodes = [int(node) for node in args.node_list.split(",")]
+            logger.info(f"사용자 지정 노드 {len(selected_nodes)}개를 사용합니다: {selected_nodes}")
+        else:
+            # 임시로 모든 노드를 로드하여 전체 노드 수 확인
+            temp_dataset = get_dataset(args.dataset_name, root_dir=args.root_dir)
+            total_nodes = temp_dataset.data.shape[1]
+
+            # 비율에 따라 랜덤하게 노드 선택
+            num_nodes = max(1, int(total_nodes * args.node_ratio))
+            np.random.seed(args.seed)  # 동일한 시드 사용
+            selected_nodes = np.random.choice(total_nodes, num_nodes, replace=False).tolist()
+            logger.info(f"전체 {total_nodes}개 노드 중 {num_nodes}개({args.node_ratio*100:.1f}%)를 랜덤하게 선택했습니다.")
+
+    # 선택된 노드로 데이터셋 로드
+    dataset = get_dataset(args.dataset_name, root_dir=args.root_dir, selected_nodes=selected_nodes)
+
+    # 데이터셋 로드 후 메모리 사용량 측정
+    dataset_memory = process.memory_info().rss / 1024 / 1024  # MB 단위
+    logger.info(f"데이터셋 로드 완료 - 메모리 사용량: {dataset_memory:.2f} MB (증가: {dataset_memory - initial_memory:.2f} MB)")
 
     logger.info(args)
 
@@ -447,8 +542,6 @@ def run_experiment(args):  # noqa: C901
 
     # 4D 데이터를 3D로 변환
     data, idx = dataset.numpy(return_idx=True)
-    # 데이터 형상 출력 (디버깅용)
-    print(f"원본 데이터 형상: {data.shape}")
 
     # 4D -> 3D 변환: [시간, 노드, 특성, 채널] -> [시간, 노드, 특성*채널]
     time_steps, n_nodes, n_features, n_channels = data.shape
@@ -457,13 +550,6 @@ def run_experiment(args):  # noqa: C901
     # 마스크도 같은 방식으로 변환
     training_mask_reshaped = dataset.training_mask.reshape(time_steps, n_nodes, n_features * n_channels)
     eval_mask_reshaped = dataset.eval_mask.reshape(time_steps, n_nodes, n_features * n_channels)
-
-    print(f"변환된 데이터 형상: {data_reshaped.shape}")
-
-    # 데이터 차원 분석을 위한 추가 정보 출력
-    real_input_size = n_features * n_channels
-    print(f"실제 입력 채널 수: {real_input_size}")
-    print(f"배치 차원 정보: 윈도우 크기={args.window}, 노드 수={n_nodes}, 특성*채널={real_input_size}")
 
     # instantiate dataset
     torch_dataset = ImputationDataset(
@@ -543,8 +629,6 @@ def run_experiment(args):  # noqa: C901
     h_size = 12  # 매개변수에 관계없이 12로 고정
     z_size = 12  # 매개변수에 관계없이 12로 고정
 
-    print(f"강제 설정된 모델 크기 - h_size: {h_size}, z_size: {z_size}")
-
     additional_model_hparams = {
         "n_nodes": dm.n_nodes,
         "input_size": dm.n_channels,
@@ -556,14 +640,6 @@ def run_experiment(args):  # noqa: C901
         "z_size": z_size,
         "support_stgan_format": True,  # STGAN 형식 지원 활성화
     }
-
-    # 모델 파라미터 로깅
-    print("모델 구성 파라미터:")
-    print(f"  - input_size: {dm.n_channels}")
-    print(f"  - h_size: {h_size}")
-    print(f"  - z_size: {z_size}")
-    print(f"  - n_nodes: {dm.n_nodes}")
-    print(f"  - window_size: {dm.window}")
 
     # model's inputs
     model_kwargs = parser_utils.filter_args(args={**vars(args), **additional_model_hparams}, target_cls=model_cls, return_dict=True)
@@ -680,6 +756,28 @@ def run_experiment(args):  # noqa: C901
     imputer.load_model(checkpoint_callback.best_model_path)
     imputer.freeze()
     trainer.test(imputer, dataloaders=dm.test_dataloader(batch_size=args.batch_inference))
+
+    # 실험 완료 후 메모리 사용량 및 실행 시간 측정
+    end_time = time.time()
+    final_memory = process.memory_info().rss / 1024 / 1024  # MB 단위
+    total_time = end_time - start_time
+
+    logger.info("=" * 50)
+    logger.info("실험 완료 - 성능 요약")
+    logger.info(f"총 실행 시간: {total_time:.2f} 초 ({total_time/60:.2f} 분)")
+    logger.info(f"최종 메모리 사용량: {final_memory:.2f} MB")
+    logger.info(f"메모리 증가량: {final_memory - initial_memory:.2f} MB")
+
+    if args.use_node_subset:
+        # 선택된 노드 정보
+        if args.node_list:
+            node_info = f"사용자 지정 노드 {len(selected_nodes)}개"
+        else:
+            node_info = f"전체의 {args.node_ratio*100:.1f}% ({len(selected_nodes)}개 노드)"
+        logger.info(f"노드 서브셋 사용: {node_info}")
+    else:
+        logger.info("전체 노드 사용")
+    logger.info("=" * 50)
 
 
 if __name__ == "__main__":

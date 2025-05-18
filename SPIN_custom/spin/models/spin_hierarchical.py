@@ -45,8 +45,6 @@ class SPINHierarchicalModel(nn.Module):
         self.eta = eta
         self.support_stgan_format = support_stgan_format  # STGAN 형식 지원 플래그
 
-        print(f"SPINHierarchicalModel 초기화 - input_size: {input_size}, h_size: {h_size}, z_size: {z_size}")
-
         self.v = StaticGraphEmbedding(n_nodes, h_size)
         self.lin_v = nn.Linear(h_size, z_size, bias=False)
         self.z = nn.Parameter(torch.Tensor(1, z_heads, n_nodes, z_size))
@@ -94,8 +92,6 @@ class SPINHierarchicalModel(nn.Module):
             # STGAN 형식: [시간, 노드, 특성, 채널] -> [시간, 노드, 특성*채널]
             batch_size, n_nodes, n_features, n_channels = x.shape
             x = x.reshape(batch_size, n_nodes, n_features * n_channels)
-            # 디버깅 정보 출력
-            print(f"SPINHierarchicalModel: 입력 데이터 형상 변환 {(batch_size, n_nodes, n_features, n_channels)} -> {x.shape}")
         return x
 
     def _prepare_mask(self, mask):
@@ -104,8 +100,6 @@ class SPINHierarchicalModel(nn.Module):
             # STGAN 형식: [시간, 노드, 특성, 채널] -> [시간, 노드, 특성*채널]
             batch_size, n_nodes, n_features, n_channels = mask.shape
             mask = mask.reshape(batch_size, n_nodes, n_features * n_channels)
-            # 디버깅 정보 출력
-            print(f"SPINHierarchicalModel: 마스크 형상 변환 {(batch_size, n_nodes, n_features, n_channels)} -> {mask.shape}")
         return mask
 
     def forward(  # noqa: C901
@@ -123,16 +117,10 @@ class SPINHierarchicalModel(nn.Module):
         if node_index is None:
             node_index = slice(None)
 
-        # 디버깅: 입력 차원 확인
-        print(f"Forward 입력 - x: {x.shape}, u: {u.shape}, mask: {mask.shape}")
-
         # STGAN 형식 지원 처리
         x_orig_shape = x.shape
         x = self._prepare_input(x)
         mask = self._prepare_mask(mask)
-
-        # 디버깅: 변환 후 차원 확인
-        print(f"변환 후 - x: {x.shape}, mask: {mask.shape}")
 
         # edge_index가 정수형이 아닌 경우 변환
         if edge_index is not None and edge_index.dtype != torch.long:
@@ -152,62 +140,41 @@ class SPINHierarchicalModel(nn.Module):
         batch_size, seq_len = x.shape[0], x.shape[1]
         n_nodes = self.n_nodes if x_orig_shape[2] == self.n_nodes else x_orig_shape[2]
 
-        print(f"배치 크기: {batch_size}, 시퀀스 길이: {seq_len}, 노드 수: {n_nodes}")
-
         # [배치, 시간, 노드*특성] -> [배치, 시간, 노드, 특성]로 재구성
         # 특성 수는 원래 특성*채널 값을 노드 수로 나눔
         features_per_node = x.shape[2] // n_nodes
 
-        print(f"노드당 특성 수: {features_per_node}")
-
         # 재구성된 x와 mask
         x_reshaped = x.reshape(batch_size, seq_len, n_nodes, features_per_node)
         mask_reshaped = mask.reshape(batch_size, seq_len, n_nodes, features_per_node)
-
-        print(f"재구성된 x 형상: {x_reshaped.shape}")
-        print(f"재구성된 mask 형상: {mask_reshaped.shape}")
 
         # 이제 노드 차원을 처리하기 위해 텐서 재배열
         # [배치, 시간, 노드, 특성] -> [배치*시간, 노드, 특성]
         x_flat = x_reshaped.reshape(-1, n_nodes, features_per_node)
         mask_flat = mask_reshaped.reshape(-1, n_nodes, features_per_node)
 
-        print(f"평탄화된 x 형상: {x_flat.shape}")
-        print(f"평탄화된 mask 형상: {mask_flat.shape}")
-
         # 시간 임베딩 준비
         q = self.u_enc(u, node_index=node_index, node_emb=v_nodes)
-
-        print(f"q shape: {q.shape}")
 
         # q를 x_flat과 호환되는 형태로 변환
         if len(q.shape) == 4:  # [배치, 시간, 노드, 특성] 형태
             q_flat = q.reshape(-1, q.shape[2], q.shape[3])
-            print(f"q_flat shape: {q_flat.shape}")
         else:
             # 다른 형태의 q 처리
-            print(f"예상치 못한 q 형태: {q.shape}")
             q_flat = q.unsqueeze(1).repeat(1, n_nodes, 1)
-            print(f"조정된 q_flat shape: {q_flat.shape}")
 
         # 이제 노드별로 처리
         # h_enc는 [배치*시간, 노드, 특성] -> [배치*시간, 노드, h_size]
         h_flat = self.h_enc(x_flat) + q_flat
 
-        print(f"h_flat shape: {h_flat.shape}")
-
         # 다시 원래 형태로 복원
         h = h_flat.reshape(batch_size, seq_len, n_nodes, self.h_size)
-
-        print(f"h shape: {h.shape}, z shape: {z.shape}")
 
         # 이제 mask도 같은 형태로 맞춤
         mask = mask_reshaped
 
         # 마스크 차원 확인 및 조정
         if mask.shape[-1] != h.shape[-1]:
-            print(f"마스크 차원 불일치: mask={mask.shape[-1]}, h={h.shape[-1]}")
-
             # 마스크 차원 확장 (예: [b, t, n, 12] -> [b, t, n, 16])
             mask_expanded = torch.zeros_like(h, dtype=mask.dtype, device=mask.device)
             c_src = mask.shape[-1]
@@ -221,7 +188,6 @@ class SPINHierarchicalModel(nn.Module):
                 mask_expanded[..., c_src:] = True
 
             mask = mask_expanded
-            print(f"마스크 조정 후: {mask.shape}")
 
         # Normalize features
         h, z = self.h_norm(h), self.z_norm(z)
@@ -236,15 +202,8 @@ class SPINHierarchicalModel(nn.Module):
         v1 = self.v1(token_index=node_index)  # [n_nodes, h_size]
         m1 = self.m1(token_index=node_index)  # [n_nodes, h_size]
 
-        # 차원 정보 로깅
-        print(f"v1 임베딩 크기: {v1.shape}")
-        print(f"h 텐서 크기: {h.shape}")
-        print(f"q 텐서 크기: {q.shape}")
-        print(f"mask 텐서 크기: {mask.shape}")
-
         # 차원이 맞지 않으면 선형 투영으로 맞추기
         if v1.shape[-1] != feature_dim:
-            print(f"임베딩 차원 불일치. v1: {v1.shape[-1]}, h: {feature_dim}")
             projection = torch.nn.functional.linear(v1, torch.eye(v1.shape[-1], feature_dim, device=v1.device))
             v1 = projection
 
@@ -271,7 +230,6 @@ class SPINHierarchicalModel(nn.Module):
 
                 # 차원이 맞지 않으면 선형 투영으로 맞추기
                 if v2.shape[-1] != feature_dim:
-                    print(f"임베딩 차원 불일치. v2: {v2.shape[-1]}, h: {feature_dim}")
                     projection = torch.nn.functional.linear(v2, torch.eye(v2.shape[-1], feature_dim, device=v2.device))
                     v2 = projection
 
@@ -290,11 +248,6 @@ class SPINHierarchicalModel(nn.Module):
             # x_reshaped와 h의 차원을 맞춤
             x_skip_input = x_reshaped
             try:
-                # 차원 확인 로깅
-                print(f"x_skip_input shape: {x_skip_input.shape}")
-                print(f"h shape: {h.shape}")
-                print(f"x_skip 레이어 입력 크기: {self.x_skip[L].in_features}, 출력 크기: {self.x_skip[L].out_features}")
-
                 # 레이어 입력에 맞게 텐서 재배열
                 # [배치, 시간, 노드, 특성] -> [배치*시간*노드, 특성]
                 bs, ts, ns, fs = x_skip_input.shape
@@ -302,8 +255,6 @@ class SPINHierarchicalModel(nn.Module):
 
                 # 입력 크기가 일치하지 않는 경우 처리
                 if fs != self.x_skip[L].in_features:
-                    print(f"입력 크기 불일치: 텐서 크기 {fs}, 레이어 입력 크기 {self.x_skip[L].in_features}")
-                    # 대체 방법: 선형 레이어를 건너뛰고 투사 수행
                     x_skip_output = torch.nn.functional.linear(x_skip_flat, torch.eye(fs, self.h_size, device=x_skip_flat.device))
                 else:
                     # 선형 레이어 통과
@@ -314,10 +265,9 @@ class SPINHierarchicalModel(nn.Module):
 
                 # skip connection 적용
                 h = h + x_skip_output * mask
-            except RuntimeError as e:
-                print(f"x_skip 연산 오류: {e}")
+            except RuntimeError:
                 # 오류 발생 시 건너뛰기
-                print("Skip connection 건너뛰기")
+                pass
 
             # Masked Temporal GAT for encoding representation
             h, z = self.encoder[L](h, z, edge_index, mask=mask)

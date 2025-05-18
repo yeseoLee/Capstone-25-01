@@ -64,14 +64,14 @@ def compare_and_visualize():
         pemsbay_data = load_pemsbay_data()
 
         # 기본 정보 출력
-        print("\n=== STGAN 데이터셋 정보 ===")
-        print(f"데이터 형상: {stgan_data['data'].shape}")
-        print(f"시간 특성 형상: {stgan_data['time_features'].shape}")
-        print(f"노드 인접 정보 샘플: {stgan_data['node_adjacent_sample'][0][:100]}...")
+        # print("\n=== STGAN 데이터셋 정보 ===")
+        # print(f"데이터 형상: {stgan_data['data'].shape}")
+        # print(f"시간 특성 형상: {stgan_data['time_features'].shape}")
+        # print(f"노드 인접 정보 샘플: {stgan_data['node_adjacent_sample'][0][:100]}...")
 
-        print("\n=== TSL PemsBay 데이터셋 정보 ===")
-        print(f"데이터 형상: {pemsbay_data['data'].shape}")
-        print(f"연결성 행렬 형상: {pemsbay_data['adj_matrix'].shape}")
+        # print("\n=== TSL PemsBay 데이터셋 정보 ===")
+        # print(f"데이터 형상: {pemsbay_data['data'].shape}")
+        # print(f"연결성 행렬 형상: {pemsbay_data['adj_matrix'].shape}")
 
         # 데이터 구조 시각화
         fig, axes = plt.subplots(2, 3, figsize=(18, 10))
