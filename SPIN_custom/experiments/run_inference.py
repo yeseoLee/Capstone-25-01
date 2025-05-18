@@ -1,6 +1,6 @@
 import copy
-import os
 import datetime
+import os
 
 import numpy as np
 import pytorch_lightning as pl
@@ -13,7 +13,7 @@ from tsl.data import ImputationDataset, SpatioTemporalDataModule
 from tsl.data.preprocessing import StandardScaler
 from tsl.datasets.prototypes import Dataset
 from tsl.nn.utils import casting
-from tsl.utils import ArgParser, numpy_metrics, parser_utils
+from tsl.utils import ArgParser, parser_utils
 from tsl.utils.python_utils import ensure_list
 import yaml
 

@@ -180,3 +180,5 @@ cython_debug/
 /SPIN_custom/log/
 /SPIN_custom/lightning_logs/
 
+/STGAN/datasets/
+/STGAN_custom/datasets/

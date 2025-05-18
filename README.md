@@ -59,17 +59,13 @@ pip install -r requirements.txt
 ## 사용 방법
 
 ```bash
-# 1. 데이터 생성
-python run.py generate
+# SPIN_custom
+cd SPIN_custom
+PYTHONPATH=. python experiments/run_imputation.py --use-node-subset --node-ratio 0.1
+PYTHONPATH=. python experiments/run_inference.py
 
-# 2. 모델 학습
-python run.py train [--epochs EPOCHS] [--batch_size BATCH_SIZE] [--learning_rate LR]
+# STGAN_custom
 
-# 3. 모델 평가
-python run.py evaluate [--cpu]
-
-# 또는 모든 과정 한 번에 실행
-python run.py all [--epochs EPOCHS] [--batch_size BATCH_SIZE] [--learning_rate LR] [--cpu]
 ```
 
 ## 결과 확인
