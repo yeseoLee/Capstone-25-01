@@ -100,6 +100,7 @@ if opt["use_node_subset"]:
     try:
         import datetime
         import time
+
         import psutil
 
         # 시작 시간 및 메모리 사용량 측정
@@ -111,7 +112,7 @@ if opt["use_node_subset"]:
 
         # 노드 서브셋 정보
         if opt["node_list"]:
-            print(f"노드 서브셋 사용: 사용자 지정 노드 목록")
+            print("노드 서브셋 사용: 사용자 지정 노드 목록")
         else:
             print(f"노드 서브셋 사용: 전체 노드의 {opt['node_ratio']*100:.1f}%")
 

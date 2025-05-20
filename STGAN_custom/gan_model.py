@@ -87,7 +87,7 @@ class Discriminator(nn.Module):
         self.T_recent = self.opt["recent_time"] * self.opt["timestamp"]
 
         # 주요 설정 로깅
-        print(f"[Discriminator 초기화] 설정값:")
+        print("[Discriminator 초기화] 설정값:")
         print(f" - hidden_dim: {opt['hidden_dim']}")
         print(f" - num_adj: {opt['num_adj']}")
         print(f" - num_feature: {opt['num_feature']}")

@@ -81,7 +81,7 @@ class data_loader(data.Dataset):
                         # 이 부분은 데이터셋의 특성에 따라 다르게 처리할 수 있음
                         new_adjs[i, j] = i  # 자기 자신으로 대체
 
-            self.logger.info(f"인접 노드 정보를 노드 서브셋에 맞게 조정했습니다.")
+            self.logger.info("인접 노드 정보를 노드 서브셋에 맞게 조정했습니다.")
 
             # 선택된 노드만 사용하도록 데이터 필터링
             self.data = torch.tensor(original_data[:, self.selected_nodes, :, :], dtype=torch.float)
