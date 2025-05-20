@@ -2,7 +2,30 @@
 STGAN 데이터셋에 결측치(마스킹)를 생성하고 저장하는 스크립트
 
 사용법:
+    # 기본 사용법 (전체 구간에 결측치 생성)
     python ./datasets/data_pipeline/create_missing_data.py --dataset_name bay --output_dir ./datasets/bay/masked --p_fault 0.0015 --p_noise 0.05
+
+    # 특정 구간에만 결측치 생성
+    python ./datasets/data_pipeline/create_missing_data.py --dataset_name bay --output_dir ./datasets/bay/masked --p_fault 0.0015 --p_noise 0.05 --start_interval 0.2 --end_interval 0.8
+
+    # point 방식으로 결측치 생성 (독립적인 결측치만 생성)
+    python ./datasets/data_pipeline/create_missing_data.py --dataset_name bay --output_dir ./datasets/bay/masked --mask_type point
+
+파라미터 설명:
+    --dataset_name: 데이터셋 이름 (현재는 'bay'만 지원)
+    --output_dir: 출력 디렉토리 경로
+    --p_fault: 결함 확률 (연속적인 결측치를 생성하는 비율, 기본값: 0.0015)
+    --p_noise: 잡음 확률 (독립적인 결측치를 생성하는 비율, 기본값: 0.05)
+    --mask_type: 마스크 유형 ('block': 연속적 결측치, 'point': 독립적 결측치)
+    --start_interval: 결측치 생성 시작 구간 (0.0~1.0, 기본값: 0.0)
+    --end_interval: 결측치 생성 종료 구간 (0.0~1.0, 기본값: 1.0)
+
+예시:
+    # 전체 구간의 20%에서 80% 사이에만 결측치 생성
+    python ./datasets/data_pipeline/create_missing_data.py --dataset_name bay --output_dir ./datasets/bay/masked --start_interval 0.2 --end_interval 0.8
+
+    # 전체 구간의 50% 이후부터 결측치 생성
+    python ./datasets/data_pipeline/create_missing_data.py --dataset_name bay --output_dir ./datasets/bay/masked --start_interval 0.5
 """  # noqa: E501
 
 import argparse
@@ -70,9 +93,7 @@ def create_missing_mask(  # noqa: C901
     return mask
 
 
-def save_masked_data(
-    data, mask, output_dir, mask_type="block", p_fault=0.0015, p_noise=0.05, start_interval=0.0, end_interval=1.0
-):
+def save_masked_data(data, mask, output_dir, mask_type="block", p_fault=0.0015, p_noise=0.05, start_interval=0.0, end_interval=1.0):
     """
     마스킹된 데이터를 저장
 
@@ -114,9 +135,7 @@ def save_masked_data(
     return data_dir
 
 
-def create_masked_dataset(
-    dataset_name, output_dir, p_fault=0.0015, p_noise=0.05, mask_type="block", start_interval=0.0, end_interval=1.0
-):
+def create_masked_dataset(dataset_name, output_dir, p_fault=0.0015, p_noise=0.05, mask_type="block", start_interval=0.0, end_interval=1.0):
     """
     마스킹된 데이터셋 생성
 
@@ -151,7 +170,7 @@ def create_masked_dataset(
         # 통계 정보 출력
         missing_ratio = 1.0 - np.mean(mask)
         print("생성된 마스크 정보:")
-        print(f"- 결측치 비율: {missing_ratio:.4f} ({missing_ratio*100:.2f}%)")
+        print(f"- 결측치 비율: {missing_ratio:.4f} ({missing_ratio * 100:.2f}%)")
         print(f"- 마스크 형태: {mask.shape}")
 
         return data_dir
