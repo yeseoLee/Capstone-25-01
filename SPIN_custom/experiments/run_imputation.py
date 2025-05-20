@@ -109,13 +109,13 @@ class DirectSTGANDataset(Dataset):
     def load(self):
         # 데이터 로드
         data_path = os.path.join(self.data_dir, "data.npy")
-        time_features_path = os.path.join(self.data_dir, "time_features.txt")
+        time_features_path = os.path.join(self.data_dir, "time_features_with_weather.txt")
         node_adjacent_path = os.path.join(self.data_dir, "node_adjacent.txt")
         node_dist_path = os.path.join(self.data_dir, "node_dist.txt")
 
         # 교통 데이터 로드 (time, node, feature, channel)
         full_data = np.load(data_path)
-        self.time_features = np.loadtxt(time_features_path)
+        self.time_features_with_weather = np.loadtxt(time_features_path)
         full_node_adjacent = np.loadtxt(node_adjacent_path, dtype=np.int32)
         full_node_dist = np.loadtxt(node_dist_path)
 
@@ -159,7 +159,7 @@ class DirectSTGANDataset(Dataset):
         self._eval_mask = self._mask.copy()
 
         # 시간 정보 추가
-        self.add_exogenous("temporal_encoding", self.time_features)
+        self.add_exogenous("temporal_encoding", self.time_features_with_weather)
 
         # Dataset 클래스의 필수 속성 설정
         self._idx = np.arange(self.data.shape[0])
@@ -226,10 +226,10 @@ class DirectSTGANDataset(Dataset):
         result = {}
         if fields is None or "day" in fields:
             # 시간대 정보 (24 시간)
-            result["day"] = self.time_features[:, 7:]
+            result["day"] = self.time_features_with_weather[:, 7:]
         if fields is None or "week" in fields:
             # 요일 정보 (7일)
-            result["week"] = self.time_features[:, :7]
+            result["week"] = self.time_features_with_weather[:, :7]
 
         # NumPy 배열을 반환하는 대신 TSL에서 사용하는 형식에 맞게 반환
         class EncodedDatetime:
@@ -677,7 +677,7 @@ def run_experiment(args):  # noqa: C901
     additional_model_hparams = {
         "n_nodes": dm.n_nodes,
         "input_size": dm.n_channels,
-        "u_size": 31,  # STGAN time_features는 31개 (7일 + 24시간)
+        "u_size": 34,  # STGAN time_features_with_weather는 34개 (7일 + 24시간 + 3가지 날씨)
         "output_size": dm.n_channels,
         "window_size": dm.window,
         # 모델 차원을 명시적으로 설정

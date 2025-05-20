@@ -36,7 +36,7 @@ parser.add_argument("--convert-outliers", action="store_true", help="이상치�
 
 # 노드 선택 관련 인자 추가
 parser.add_argument("--use-node-subset", action="store_true", help="일부 노드만 사용하여 메모리 사용량 감소")
-parser.add_argument("--node-ratio", type=float, default=0.2, help="전체 노드 중 사용할 비율 (0.0-1.0)")
+parser.add_argument("--node-ratio", type=float, default=0.1, help="전체 노드 중 사용할 비율 (0.0-1.0)")
 parser.add_argument("--node-list", type=str, default=None, help="사용할 노드 인덱스 목록 (쉼표로 구분)")
 
 args = parser.parse_args()

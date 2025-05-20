@@ -106,7 +106,7 @@ class DirectSTGANDataset(Dataset):
     def load(self):
         # 데이터 로드
         data_path = os.path.join(self.data_dir, "data.npy")
-        time_features_path = os.path.join(self.data_dir, "time_features.txt")
+        time_features_path = os.path.join(self.data_dir, "time_features_with_weather.txt")
         node_adjacent_path = os.path.join(self.data_dir, "node_adjacent.txt")
         node_dist_path = os.path.join(self.data_dir, "node_dist.txt")
 
@@ -418,7 +418,7 @@ def load_model(exp_dir, exp_config, dm):
     additional_model_hparams = {
         "n_nodes": dm.n_nodes,
         "input_size": dm.n_channels,
-        "u_size": 31,  # STGAN time_features는 31개 (7일 + 24시간)
+        "u_size": 34,  # STGAN time_features_with_weather는 34개 (7일 + 24시간 + 3가지 날씨)
         "output_size": dm.n_channels,
         "window_size": dm.window,
         # 추가로 확실하게 설정
@@ -637,7 +637,11 @@ def run_experiment(args):  # noqa: C901
     if "use_node_subset" in exp_config and exp_config["use_node_subset"]:
         # 직접 노드 목록이 있는 경우
         if "selected_nodes" in exp_config and isinstance(exp_config["selected_nodes"], list):
-            selected_nodes = exp_config["selected_nodes"]
+            # 유효한 노드 인덱스만 필터링
+            max_node_idx = 324  # 0부터 시작하므로 325-1
+            selected_nodes = [node for node in exp_config["selected_nodes"] if 0 <= node <= max_node_idx]
+            if len(selected_nodes) != len(exp_config["selected_nodes"]):
+                logger.warning(f"일부 노드 인덱스가 범위를 벗어나 제외되었습니다. (유효한 노드: {len(selected_nodes)}/{len(exp_config['selected_nodes'])})")
             logger.info(f"config.yaml에서 {len(selected_nodes)}개의 선택된 노드 정보를 로드했습니다.")
         else:
             # 별도 파일에서 노드 정보 로드 시도
@@ -651,7 +655,9 @@ def run_experiment(args):  # noqa: C901
                             if not line.startswith("#"):
                                 node_str = line.strip()
                                 if node_str:
-                                    selected_nodes = [int(node.strip()) for node in node_str.split(",")]
+                                    # 유효한 노드 인덱스만 필터링
+                                    max_node_idx = 324  # 0부터 시작하므로 325-1
+                                    selected_nodes = [int(node.strip()) for node in node_str.split(",") if 0 <= int(node.strip()) <= max_node_idx]
                                 break
                     if selected_nodes:
                         logger.info(f"selected_nodes.txt에서 {len(selected_nodes)}개의 선택된 노드 정보를 로드했습니다.")
@@ -668,14 +674,19 @@ def run_experiment(args):  # noqa: C901
                             ckpt_path = os.path.join(exp_dir, file)
                             ckpt = torch.load(ckpt_path, map_location=torch.device("cpu"))
                             if "selected_nodes" in ckpt:
-                                selected_nodes = ckpt["selected_nodes"]
+                                # 유효한 노드 인덱스만 필터링
+                                max_node_idx = 324  # 0부터 시작하므로 325-1
+                                selected_nodes = [node for node in ckpt["selected_nodes"] if 0 <= node <= max_node_idx]
+                                if len(selected_nodes) != len(ckpt["selected_nodes"]):
+                                    logger.warning(f"일부 노드 인덱스가 범위를 벗어나 제외되었습니다. (유효한 노드: {len(selected_nodes)}/{len(ckpt['selected_nodes'])})")
                                 logger.info(f"체크포인트에서 {len(selected_nodes)}개의 선택된 노드 정보를 로드했습니다.")
                             break
                         except Exception as e:
                             logger.warning(f"체크포인트 로드 중 오류 발생: {str(e)}")
 
-    if selected_nodes is None:
-        logger.info("선택된 노드 정보가 없습니다. 모든 노드를 사용합니다.")
+    if selected_nodes is None or len(selected_nodes) == 0:
+        logger.info("선택된 노드 정보가 없거나 유효하지 않습니다. 모든 노드를 사용합니다.")
+        selected_nodes = None
 
     ########################################
     # load dataset                         #
