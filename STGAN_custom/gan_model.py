@@ -9,14 +9,6 @@ class Generator(nn.Module):
         self.opt = opt
         self.device = opt.get("device", torch.device("cuda" if torch.cuda.is_available() else "cpu"))
 
-        # 주요 설정 로깅
-        print(f"[Generator 초기화] 설정값:")
-        print(f" - hidden_dim: {opt['hidden_dim']}")
-        print(f" - num_adj: {opt['num_adj']}")
-        print(f" - num_feature: {opt['num_feature']}")
-        print(f" - num_layer: {opt['num_layer']}")
-        print(f" - device: {self.device}")
-
         # 노드 서브셋 사용 여부 확인
         if opt.get("use_node_subset", False):
             print(f" - 노드 서브셋 사용: {'True' if opt.get('use_node_subset') else 'False'}")
@@ -61,39 +53,25 @@ class Generator(nn.Module):
 
         combined = torch.cat([recent, trend, feature_fc], dim=2)
 
-        # 디버깅 정보 출력
-        print(f"[Generator 정보] 텐서 형태:")
-        print(f" - recent: {recent.shape}")
-        print(f" - trend: {trend.shape}")
-        print(f" - feature_fc: {feature_fc.shape}")
-        print(f" - combined: {combined.shape}")
-        print(f" - sub_graph: {sub_graph.shape}")
-
         # GCN의 input_size가 combined 텐서의 마지막 차원과 일치하는지 확인
         expected_input_size = self.opt["hidden_dim"] * 3
         actual_input_size = combined.shape[2]
 
         if actual_input_size != expected_input_size:
-            print(f"[Generator 경고] combined 텐서 차원 불일치: 예상={expected_input_size}, 실제={actual_input_size}")
-
             # 차원 조정 시도
             if actual_input_size > expected_input_size:
                 # 차원이 큰 경우, 잘라냄
                 combined = combined[:, :, :expected_input_size]
-                print(f"[Generator 정보] 텐서 차원 조정 (잘라냄): {combined.shape}")
             else:
                 # 차원이 작은 경우, 패딩 추가
                 padding = torch.zeros(batch_size, self.opt["num_adj"], expected_input_size - actual_input_size, device=self.device)
                 combined = torch.cat([combined, padding], dim=2)
-                print(f"[Generator 정보] 텐서 차원 조정 (패딩): {combined.shape}")
 
         # 인접 행렬 크기 확인 및 조정
         if sub_graph.shape[1] != self.opt["num_adj"] or sub_graph.shape[2] != self.opt["num_adj"]:
-            print(f"[Generator 경고] 인접 행렬 차원 불일치: 인접 행렬={sub_graph.shape}, num_adj={self.opt['num_adj']}")
             # 인접 행렬 크기가 다른 경우, 항등 행렬로 초기화
             if self.opt["num_adj"] > 0:
                 sub_graph = torch.eye(self.opt["num_adj"]).unsqueeze(0).repeat(batch_size, 1, 1).to(self.device)
-                print(f"[Generator 정보] 인접 행렬 재생성: {sub_graph.shape}")
 
         output = self.gcn(combined, sub_graph)
 
@@ -118,14 +96,12 @@ class Discriminator(nn.Module):
 
         # GCN 입력 크기 확인 및 설정
         gcn_input_size = opt["num_feature"]
-        print(f" - GCN 입력 크기: {gcn_input_size}")
         self.gcn = GCN(opt, input_size=gcn_input_size, output_size=opt["hidden_dim"])
 
         self.seq_network = GCGRUModel(opt)
 
         # seq_fc 입력 크기 계산
         seq_fc_input_size = opt["hidden_dim"] * opt["num_adj"] // 2
-        print(f" - seq_fc 입력 크기: {seq_fc_input_size}")
         self.seq_fc = nn.Sequential(
             nn.Linear(in_features=seq_fc_input_size, out_features=opt["hidden_dim"]),
             nn.ReLU(),
@@ -150,20 +126,12 @@ class Discriminator(nn.Module):
         :return
         - Output: `2-D` tensor with shape `(B, 2)`
         """
-        # 디버깅 정보 출력
-        print(f"[Discriminator 정보] 입력 텐서 형태:")
-        print(f" - sequence: {sequence.shape}")
-        print(f" - sub_graph: {sub_graph.shape}")
-        print(f" - trend_data: {trend_data.shape}")
-
         # 인접 행렬 크기 확인 및 조정
         batch_size = sequence.shape[0]
         if sub_graph.shape[1] != self.opt["num_adj"] or sub_graph.shape[2] != self.opt["num_adj"]:
-            print(f"[Discriminator 경고] 인접 행렬 차원 불일치: 인접 행렬={sub_graph.shape}, num_adj={self.opt['num_adj']}")
             # 인접 행렬 크기가 다른 경우, 항등 행렬로 초기화
             if self.opt["num_adj"] > 0:
                 sub_graph = torch.eye(self.opt["num_adj"]).unsqueeze(0).repeat(batch_size, 1, 1).to(self.device)
-                print(f"[Discriminator 정보] 인접 행렬 재생성: {sub_graph.shape}")
 
         seq, hid = self.seq_network(
             sequence[
@@ -213,25 +181,15 @@ class GCN(nn.Module):
 
         # 입력 및 행렬 크기 확인
         if input_dim != self.input_size:
-            # 입력 차원이 예상과 다를 경우 로그에 기록
-            print(f"[GCN 경고] 입력 차원 불일치: 예상={self.input_size}, 실제={input_dim}")
-            print(f"[GCN 정보] 입력 텐서 형태: {x.shape}, 인접 행렬 형태: {A.shape}")
-
             # 차원 불일치 문제 해결 시도
             # 1. 차원을 맞추기 위해 잘라내거나 패딩
             if input_dim > self.input_size:
                 # 차원이 큰 경우, 잘라냄
                 x = x[:, :, : self.input_size]
-                print(f"[GCN 정보] 입력 차원 조정 (잘라냄): {x.shape}")
             else:
                 # 차원이 작은 경우, 패딩 추가
                 padding = torch.zeros(batch_size, num_nodes, self.input_size - input_dim, device=self.device)
                 x = torch.cat([x, padding], dim=2)
-                print(f"[GCN 정보] 입력 차원 조정 (패딩): {x.shape}")
-
-        # 인접 행렬 크기 확인
-        if A.shape[1] != num_nodes or A.shape[2] != num_nodes:
-            print(f"[GCN 경고] 인접 행렬 차원 불일치: A={A.shape}, 노드 수={num_nodes}")
 
         # 행렬 곱셈 수행
         x = torch.bmm(A, x)  # (B, num_nodes, input_dim)
@@ -264,26 +222,19 @@ class GCGRUCell(torch.nn.Module):
         """
         # 입력 텐서 크기 확인
         if x.shape[1] != h.shape[1]:
-            print(f"[GCGRUCell 경고] 입력과 상태 텐서의 노드 수 불일치: x={x.shape}, h={h.shape}")
-
             # 노드 수가 다른 경우, 작은 쪽에 맞춤
             min_nodes = min(x.shape[1], h.shape[1])
             if x.shape[1] > min_nodes:
                 x = x[:, :min_nodes, :]
-                print(f"[GCGRUCell 정보] 입력 텐서 조정: {x.shape}")
             if h.shape[1] > min_nodes:
                 h = h[:, :min_nodes, :]
-                print(f"[GCGRUCell 정보] 상태 텐서 조정: {h.shape}")
 
         # 인접 행렬 크기 확인
         if A.shape[1] != x.shape[1] or A.shape[2] != x.shape[1]:
-            print(f"[GCGRUCell 경고] 인접 행렬 크기 불일치: A={A.shape}, 노드 수={x.shape[1]}")
-
             # 인접 행렬 크기가 다른 경우, 항등 행렬로 초기화
             batch_size = x.shape[0]
             num_nodes = x.shape[1]
             A = torch.eye(num_nodes).unsqueeze(0).repeat(batch_size, 1, 1).to(self.device)
-            print(f"[GCGRUCell 정보] 인접 행렬 재생성: {A.shape}")
 
         x_h = torch.cat([x, h], dim=2)
 
