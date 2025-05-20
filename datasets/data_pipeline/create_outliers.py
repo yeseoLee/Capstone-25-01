@@ -2,7 +2,48 @@
 STGAN 데이터셋에 이상치(outlier)를 생성하고 저장하는 스크립트
 
 사용법:
+    # 기본 사용법 (전체 구간에 점 이상치 생성)
     python ./datasets/data_pipeline/create_outliers.py --dataset_name bay --output_dir ./datasets/bay/outliers --scenario point
+
+    # 특정 구간에만 블록 이상치 생성
+    python ./datasets/data_pipeline/create_outliers.py --dataset_name bay --output_dir ./datasets/bay/outliers --scenario block --start_interval 0.2 --end_interval 0.8
+
+    # 맥락적 이상치 생성 (시간대 교환)
+    python ./datasets/data_pipeline/create_outliers.py --dataset_name bay --output_dir ./datasets/bay/outliers --scenario contextual --replace_ratio 0.05
+
+파라미터 설명:
+    --dataset_name: 데이터셋 이름 (현재는 'bay'만 지원)
+    --output_dir: 출력 디렉토리 경로
+    --scenario: 이상치 생성 시나리오 ('point', 'block', 'contextual')
+    --seed: 랜덤 시드 (기본값: 42)
+    --start_interval: 이상치 생성 시작 구간 (0.0~1.0, 기본값: 0.0)
+    --end_interval: 이상치 생성 종료 구간 (0.0~1.0, 기본값: 1.0)
+
+시나리오별 추가 파라미터:
+    point 시나리오:
+        --min_deviation: 최소 편차 (정규화된 값, 기본값: 0.2)
+        --max_deviation: 최대 편차 (정규화된 값, 기본값: 0.5)
+        --p_outlier: 이상치 생성 확률 (기본값: 0.01)
+
+    block 시나리오:
+        --min_deviation: 최소 편차 (정규화된 값, 기본값: 0.2)
+        --max_deviation: 최대 편차 (정규화된 값, 기본값: 0.5)
+        --min_duration: 최소 지속 시간 (기본값: 5)
+        --max_duration: 최대 지속 시간 (기본값: 20)
+        --p_outlier: 이상치 발생 확률 (기본값: 0.005)
+
+    contextual 시나리오:
+        --replace_ratio: 대체 비율 (기본값: 0.05)
+
+예시:
+    # 전체 구간의 20%에서 80% 사이에만 점 이상치 생성
+    python ./datasets/data_pipeline/create_outliers.py --dataset_name bay --output_dir ./datasets/bay/outliers --scenario point --start_interval 0.2 --end_interval 0.8 --min_deviation 0.3 --max_deviation 0.6 --p_outlier 0.02
+
+    # 전체 구간의 50% 이후부터 블록 이상치 생성
+    python ./datasets/data_pipeline/create_outliers.py --dataset_name bay --output_dir ./datasets/bay/outliers --scenario block --start_interval 0.5 --min_duration 10 --max_duration 30 --p_outlier 0.01
+
+    # 전체 구간에 맥락적 이상치 생성 (10% 교환)
+    python ./datasets/data_pipeline/create_outliers.py --dataset_name bay --output_dir ./datasets/bay/outliers --scenario contextual --replace_ratio 0.1
 """  # noqa: E501
 
 import argparse
@@ -100,10 +141,7 @@ class PointOutlierGenerator(OutlierGenerator):
         """
         점 이상치 생성
         """
-        print(
-            f"점 이상치 생성 중... (편차 범위: {self.min_deviation:.2f}-{self.max_deviation:.2f}, "
-            f"확률: {self.p_outlier:.4f}, 구간: {self.start_interval:.2f}-{self.end_interval:.2f})"
-        )
+        print(f"점 이상치 생성 중... (편차 범위: {self.min_deviation:.2f}-{self.max_deviation:.2f}, 확률: {self.p_outlier:.4f}, 구간: {self.start_interval:.2f}-{self.end_interval:.2f})")
 
         # 데이터 형태 확인
         time_len, node_len, feature_dim, channel_dim = self.data.shape
@@ -435,12 +473,7 @@ def save_outlier_data(data, outlier_mask, output_dir, scenario, **kwargs):
     interval_str = f"_interval{start_interval:.2f}-{end_interval:.2f}"
 
     if scenario == "point":
-        folder_name = (
-            f"{scenario}_dev{kwargs.get('min_deviation', 0.2):.2f}-"
-            f"{kwargs.get('max_deviation', 0.5):.2f}_"
-            f"p{kwargs.get('p_outlier', 0.01):.4f}"
-            f"{interval_str}"
-        )
+        folder_name = f"{scenario}_dev{kwargs.get('min_deviation', 0.2):.2f}-{kwargs.get('max_deviation', 0.5):.2f}_p{kwargs.get('p_outlier', 0.01):.4f}{interval_str}"
     elif scenario == "block":
         folder_name = (
             f"{scenario}_dev{kwargs.get('min_deviation', 0.2):.2f}-"
@@ -510,7 +543,7 @@ def create_outlier_dataset(dataset_name, output_dir, scenario, **kwargs):
         # 이상치 비율 계산
         outlier_ratio = 1.0 - np.mean(outlier_mask)
         print("생성된 이상치 정보:")
-        print(f"- 이상치 비율: {outlier_ratio:.4f} ({outlier_ratio*100:.2f}%)")
+        print(f"- 이상치 비율: {outlier_ratio:.4f} ({outlier_ratio * 100:.2f}%)")
         print(f"- 이상치 마스크 형태: {outlier_mask.shape}")
 
         return data_dir
