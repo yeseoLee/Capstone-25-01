@@ -34,7 +34,7 @@ class DirectSTGANDataset(Dataset):
     데이터 형식 변환 없이 원본 형태로 사용합니다.
     """
 
-    def __init__(self, root_dir=None, selected_nodes=None):
+    def __init__(self, root_dir=None, data_path=None, selected_nodes=None):
         """
         Args:
             root_dir: STGAN 데이터셋이 있는 디렉토리 경로
@@ -48,7 +48,7 @@ class DirectSTGANDataset(Dataset):
             root_dir = os.path.join(os.path.dirname(os.getcwd()), "datasets", "bay")
 
         self._root_dir = root_dir
-        self._data_dir = os.path.join(root_dir, "data")
+        self._data_dir = os.path.join(root_dir, data_path)
         self._exogenous = {}
         self.selected_nodes = selected_nodes
 
@@ -297,7 +297,7 @@ class DirectSTGANDataset(Dataset):
         return filtered_adjacency
 
 
-def get_dataset(dataset_name: str, root_dir=None, selected_nodes=None):
+def get_dataset(dataset_name: str, root_dir=None, data_path=None, selected_nodes=None):
     # STGAN 데이터셋 사용
     if dataset_name.endswith("_point"):
         p_fault, p_noise = 0.0, 0.25
@@ -310,7 +310,7 @@ def get_dataset(dataset_name: str, root_dir=None, selected_nodes=None):
 
     if dataset_name == "bay":
         # 원본 STGAN 데이터 형식을 직접 로드 (선택된 노드만 사용하는 옵션 추가)
-        stgan_dataset = DirectSTGANDataset(root_dir=root_dir, selected_nodes=selected_nodes).load()
+        stgan_dataset = DirectSTGANDataset(root_dir=root_dir, data_path=data_path, selected_nodes=selected_nodes).load()
 
         # 결측치를 직접 추가하는 로직 구현
         # 원본 데이터 복사
@@ -379,7 +379,7 @@ def parse_args():
     parser.add_argument("--config", type=str, default="inference.yaml")
     parser.add_argument("--root", type=str, default="log")
     parser.add_argument("--root-dir", type=str, default=None, help="datasets/bay 데이터셋 경로")
-
+    parser.add_argument("--data-path", type=str, default="data", help="datasets/bay 데이터셋 경로")
     # Data sparsity params - 값 수정
     parser.add_argument("--p-fault", type=float, default=0.01, help="블록 결측치의 확률 (높을수록 더 많은 블록 결측치)")
     parser.add_argument("--p-noise", type=float, default=0.25, help="포인트 결측치의 확률 (높을수록 더 많은 포인트 결측치)")
@@ -692,7 +692,7 @@ def run_experiment(args):  # noqa: C901
     # load dataset                         #
     ########################################
 
-    dataset = get_dataset(exp_config["dataset_name"], root_dir=args.root_dir, selected_nodes=selected_nodes)
+    dataset = get_dataset(exp_config["dataset_name"], root_dir=args.root_dir, data_path=args.data_path, selected_nodes=selected_nodes)
 
     # 데이터 품질 확인 및 NaN 처리
     data = dataset._target

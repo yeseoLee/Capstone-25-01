@@ -77,9 +77,9 @@ if opt["dataset"] == "bay":
     opt["time_feature"] = 31  # length of time feature
 
 # 경로 설정 부분 수정 - 이중 슬래시 문제 해결
-opt["save_path"] = os.path.join(opt["root_path"], f"datasets/{opt['dataset']}/checkpoint/")
-opt["data_path"] = os.path.join(opt["root_path"], f"datasets/{opt['dataset']}/data")  # 끝에 슬래시 제거
-opt["result_path"] = os.path.join(opt["root_path"], f"datasets/{opt['dataset']}/result/")
+opt["save_path"] = os.path.join(opt["root_path"], f"../datasets/{opt['dataset']}/checkpoint/")
+opt["data_path"] = os.path.join(opt["root_path"], f"../datasets/{opt['dataset']}/data")  # 끝에 슬래시 제거
+opt["result_path"] = os.path.join(opt["root_path"], f"../datasets/{opt['dataset']}/result/")
 
 # 디렉토리 존재 확인 및 생성
 for path in [opt["save_path"], os.path.dirname(opt["data_path"]), opt["result_path"]]:

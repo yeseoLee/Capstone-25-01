@@ -495,13 +495,72 @@ def save_outlier_data(data, outlier_mask, output_dir, scenario, **kwargs):
     np.save(os.path.join(data_dir, "outlier_mask.npy"), outlier_mask)  # 이상치 마스크도 저장
 
     # 필요한 보조 파일 복사
-    for file in ["time_features.txt", "node_subgraph.npy", "node_adjacent.txt", "node_dist.txt"]:
+    for file in ["time_features_with_weather.txt", "node_subgraph.npy", "node_adjacent.txt", "node_dist.txt"]:
         src_file = os.path.join(STGAN_DATA_PATH, file)
         if os.path.exists(src_file):
             shutil.copy2(src_file, os.path.join(data_dir, file))
+        else:
+            print(f"경고: {file}을(를) 찾을 수 없습니다.")
 
     print(f"이상치가 포함된 데이터가 {data_dir}에 저장되었습니다.")
     return data_dir
+
+
+def calculate_mae(original_data, outlier_data, outlier_mask):
+    """
+    원본 데이터와 이상치가 포함된 데이터 간의 MAE를 계산합니다.
+
+    Args:
+        original_data: 원본 데이터
+        outlier_data: 이상치가 포함된 데이터
+        outlier_mask: 이상치 마스크 (True: 정상, False: 이상치)
+
+    Returns:
+        mae: 평균 절대 오차
+        mae_by_feature: 특성별 평균 절대 오차
+        mae_by_channel: 채널별 평균 절대 오차
+    """
+    # NaN 값 처리
+    valid_mask = ~np.isnan(original_data) & ~np.isnan(outlier_data)
+
+    # 전체 MAE 계산 (NaN 제외)
+    mae = np.nanmean(np.abs(original_data[valid_mask] - outlier_data[valid_mask]))
+
+    # 특성별 MAE 계산 (NaN 제외)
+    mae_by_feature = []
+    for f in range(original_data.shape[2]):
+        feature_diff = np.abs(original_data[:, :, f, :] - outlier_data[:, :, f, :])
+        feature_valid = valid_mask[:, :, f, :]
+        if np.any(feature_valid):
+            mae_by_feature.append(np.nanmean(feature_diff[feature_valid]))
+        else:
+            mae_by_feature.append(np.nan)
+
+    # 채널별 MAE 계산 (NaN 제외)
+    mae_by_channel = []
+    for c in range(original_data.shape[3]):
+        channel_diff = np.abs(original_data[:, :, :, c] - outlier_data[:, :, :, c])
+        channel_valid = valid_mask[:, :, :, c]
+        if np.any(channel_valid):
+            mae_by_channel.append(np.nanmean(channel_diff[channel_valid]))
+        else:
+            mae_by_channel.append(np.nan)
+
+    # 이상치 영역의 MAE 계산 (NaN 제외)
+    outlier_valid = valid_mask & ~outlier_mask
+    if np.any(outlier_valid):
+        outlier_mae = np.nanmean(np.abs(original_data[outlier_valid] - outlier_data[outlier_valid]))
+    else:
+        outlier_mae = np.nan
+
+    # 정상 영역의 MAE 계산 (NaN 제외)
+    normal_valid = valid_mask & outlier_mask
+    if np.any(normal_valid):
+        normal_mae = np.nanmean(np.abs(original_data[normal_valid] - outlier_data[normal_valid]))
+    else:
+        normal_mae = np.nan
+
+    return {"total_mae": mae, "outlier_mae": outlier_mae, "normal_mae": normal_mae, "mae_by_feature": np.array(mae_by_feature), "mae_by_channel": np.array(mae_by_channel)}
 
 
 def create_outlier_dataset(dataset_name, output_dir, scenario, **kwargs):
@@ -516,7 +575,7 @@ def create_outlier_dataset(dataset_name, output_dir, scenario, **kwargs):
     """
     if dataset_name == "bay":
         data_path = os.path.join(STGAN_DATA_PATH, "data.npy")
-        time_features_path = os.path.join(STGAN_DATA_PATH, "time_features.txt")
+        time_features_path = os.path.join(STGAN_DATA_PATH, "time_features_with_weather.txt")
 
         if not os.path.exists(data_path) or not os.path.exists(time_features_path):
             raise FileNotFoundError(f"데이터 파일을 찾을 수 없습니다: {data_path} 또는 {time_features_path}")
@@ -528,6 +587,11 @@ def create_outlier_dataset(dataset_name, output_dir, scenario, **kwargs):
         print(f"데이터 형태: {data.shape}")
         print(f"시간 특성 형태: {time_features.shape}")
 
+        # NaN 값 확인 및 처리
+        if np.isnan(data).any():
+            print("경고: 데이터에 NaN 값이 있습니다. 0으로 대체합니다.")
+            data = np.nan_to_num(data, nan=0.0)
+
         # 이상치 생성기 가져오기
         generator = get_outlier_generator(data, time_features, scenario, **kwargs)
 
@@ -537,14 +601,53 @@ def create_outlier_dataset(dataset_name, output_dir, scenario, **kwargs):
         print(f"'{scenario}' 시나리오로 이상치 생성 중... (구간: {start_interval:.2f}-{end_interval:.2f})")
         outlier_data, outlier_mask = generator.generate()
 
+        # NaN 값 확인 및 처리
+        if np.isnan(outlier_data).any():
+            print("경고: 이상치 데이터에 NaN 값이 있습니다. 0으로 대체합니다.")
+            outlier_data = np.nan_to_num(outlier_data, nan=0.0)
+
+        # MAE 계산
+        mae_results = calculate_mae(data, outlier_data, outlier_mask)
+
+        print("\nMAE 분석 결과:")
+        print(f"- 전체 MAE: {mae_results['total_mae']:.6f}")
+        print(f"- 이상치 영역 MAE: {mae_results['outlier_mae']:.6f}")
+        print(f"- 정상 영역 MAE: {mae_results['normal_mae']:.6f}")
+
+        print("\n특성별 MAE:")
+        for i, mae in enumerate(mae_results["mae_by_feature"]):
+            print(f"- 특성 {i}: {mae:.6f}")
+
+        print("\n채널별 MAE:")
+        for i, mae in enumerate(mae_results["mae_by_channel"]):
+            print(f"- 채널 {i}: {mae:.6f}")
+
         # 이상치가 포함된 데이터 저장
         data_dir = save_outlier_data(outlier_data, outlier_mask, output_dir, scenario, **kwargs)
 
         # 이상치 비율 계산
         outlier_ratio = 1.0 - np.mean(outlier_mask)
-        print("생성된 이상치 정보:")
+        print("\n생성된 이상치 정보:")
         print(f"- 이상치 비율: {outlier_ratio:.4f} ({outlier_ratio * 100:.2f}%)")
         print(f"- 이상치 마스크 형태: {outlier_mask.shape}")
+
+        # MAE 결과를 파일로 저장
+        mae_file = os.path.join(data_dir, "mae_results.txt")
+        with open(mae_file, "w") as f:
+            f.write("MAE 분석 결과:\n")
+            f.write(f"- 전체 MAE: {mae_results['total_mae']:.6f}\n")
+            f.write(f"- 이상치 영역 MAE: {mae_results['outlier_mae']:.6f}\n")
+            f.write(f"- 정상 영역 MAE: {mae_results['normal_mae']:.6f}\n\n")
+
+            f.write("특성별 MAE:\n")
+            for i, mae in enumerate(mae_results["mae_by_feature"]):
+                f.write(f"- 특성 {i}: {mae:.6f}\n")
+
+            f.write("\n채널별 MAE:\n")
+            for i, mae in enumerate(mae_results["mae_by_channel"]):
+                f.write(f"- 채널 {i}: {mae:.6f}\n")
+
+            f.write(f"\n이상치 비율: {outlier_ratio:.4f} ({outlier_ratio * 100:.2f}%)\n")
 
         return data_dir
     else:
