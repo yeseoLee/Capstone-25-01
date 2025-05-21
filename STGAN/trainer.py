@@ -44,6 +44,14 @@ class Trainer(object):
                 real_data: (batch_size, num_adj, num_feature)
                 """
 
+                # 모든 입력 데이터를 CUDA 디바이스로 이동
+                if self.opt["cuda"]:
+                    recent_data = recent_data.cuda()
+                    trend_data = trend_data.cuda()
+                    real_data = real_data.cuda()
+                    sub_graph = sub_graph.cuda()
+                    time_feature = time_feature.cuda()
+
                 # 레이블을 적절한 디바이스로 이동
                 valid = torch.ones((real_data.shape[0], 1), dtype=torch.float)
                 fake = torch.zeros((real_data.shape[0], 1), dtype=torch.float)
