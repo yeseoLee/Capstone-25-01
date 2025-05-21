@@ -53,6 +53,20 @@ class Trainer(object):
         self.G_optim = torch.optim.Adam(self.G.parameters(), lr=opt["lr"])
         self.D_optim = torch.optim.Adam(self.D.parameters(), lr=opt["lr"])
 
+    def D_loss(self, score, label):
+        """
+        Discriminator의 손실 함수
+        Args:
+            score: 판별자의 출력값
+            label: 실제 레이블 (1: 진짜, 0: 가짜)
+        """
+        # 입력값을 0과 1 사이로 조정
+        score = torch.clamp(score, 0, 1)
+        label = torch.clamp(label, 0, 1)
+
+        criterion = nn.BCELoss()
+        return criterion(score, label)
+
     def train(self):
         self.G.train()
         self.D.train()
