@@ -49,10 +49,13 @@ class data_loader(data.Dataset):
 
         # recent
         for i in range(self.adj_num):
-            recent_data[:, i, :] = self.data[index_t - self.T_recent : index_t, self.adjs[index_r, i], :, :].view(
-                self.T_recent, -1
-            )
-            real_data[i, :] = self.data[index_t, self.adjs[index_r, i], :, :].view(-1)
+            # 인접 노드 인덱스가 유효한 범위를 벗어나지 않도록 조정
+            adj_idx = self.adjs[index_r, i]
+            if adj_idx >= self.node_num:
+                adj_idx = index_r  # 유효하지 않은 인덱스는 자기 자신으로 대체
+
+            recent_data[:, i, :] = self.data[index_t - self.T_recent : index_t, adj_idx, :, :].view(self.T_recent, -1)
+            real_data[i, :] = self.data[index_t, adj_idx, :, :].view(-1)
 
         # trend
         trend_data = self.data[index_t - self.T_trend : index_t, index_r, :].view(self.T_trend, -1)
