@@ -54,9 +54,10 @@ if opt["dataset"] == "bay":
     opt["num_feature"] = 6 * 2  # length of input feature
     opt["time_feature"] = 31  # length of time feature
 
-opt["save_path"] = opt["root_path"] + "datasets/" + opt["dataset"] + "/checkpoint/"
-opt["data_path"] = opt["root_path"] + "datasets/" + opt["dataset"] + "/data/"
-opt["result_path"] = opt["root_path"] + "datasets/" + opt["dataset"] + "/result/"
+# 경로 설정 수정 - 프로젝트 최상단의 datasets 폴더 참조
+opt["save_path"] = os.path.join(opt["root_path"], f"../datasets/{opt['dataset']}/checkpoint/")
+opt["data_path"] = os.path.join(opt["root_path"], f"../datasets/{opt['dataset']}/data/")
+opt["result_path"] = os.path.join(opt["root_path"], f"../datasets/{opt['dataset']}/result/")
 
 opt["train_time"] = opt["train_time"] * opt["timestamp"] * 24
 if __name__ == "__main__":

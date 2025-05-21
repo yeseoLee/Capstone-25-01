@@ -138,7 +138,7 @@ class data_loader(data.Dataset):
         # 노드 정보 파일 처리
         if self.use_node_subset and opt.get("node_info_file"):
             with open(opt["node_info_file"], "w") as f:
-                f.write(f"노드 서브셋 설정:\n")
+                f.write("노드 서브셋 설정:\n")
                 if self.node_list:
                     f.write(f"사용자 지정 노드 목록: {self.node_list}\n")
                 else:
