@@ -1,4 +1,5 @@
 import logging
+import os
 
 from gan_model import Discriminator, Generator
 from load_data import data_loader
@@ -34,43 +35,37 @@ class Trainer(object):
     def train(self):
         self.G.train()
         self.D.train()
+
         for e in range(1, self.opt["epoch"] + 1):
-            for step, ((recent_data, trend_data, time_feature), sub_graph, real_data, _, _) in enumerate(
-                self.generator
-            ):
+            for step, ((recent_data, trend_data, time_feature), sub_graph, real_data, _, _) in enumerate(self.generator):
                 """
                 recent_data: (batch_size, time, node_num, num_feature)
                 trend_data: (batch_size, time, num_feature)
                 real_data: (batch_size, num_adj, num_feature)
                 """
 
-                valid = torch.zeros((real_data.shape[0], 1), dtype=torch.float)
-                fake = torch.ones((real_data.shape[0], 1), dtype=torch.float)
-
+                # 레이블을 적절한 디바이스로 이동
+                valid = torch.ones((real_data.shape[0], 1), dtype=torch.float)
+                fake = torch.zeros((real_data.shape[0], 1), dtype=torch.float)
                 if self.opt["cuda"]:
-                    recent_data, trend_data, real_data, sub_graph, time_feature, valid, fake = (
-                        recent_data.cuda(),
-                        trend_data.cuda(),
-                        real_data.cuda(),
-                        sub_graph.cuda(),
-                        time_feature.cuda(),
-                        valid.cuda(),
-                        fake.cuda(),
-                    )
+                    valid = valid.cuda()
+                    fake = fake.cuda()
 
                 # ---------------------
                 #  Train Discriminator
                 # ---------------------
                 self.D_optim.zero_grad()
-                real_sequence = torch.cat(
-                    [recent_data, real_data.unsqueeze(1)], dim=1
-                )  # (batch_size, time, num_adj, input_size)
+                real_sequence = torch.cat([recent_data, real_data.unsqueeze(1)], dim=1)  # (batch_size, time, num_adj, input_size)
                 fake_data = self.G(recent_data, trend_data, sub_graph, time_feature)
 
                 fake_sequence = torch.cat([recent_data, fake_data.unsqueeze(1)], dim=1)
 
                 real_score_D = self.D(real_sequence, sub_graph, trend_data)
                 fake_score_D = self.D(fake_sequence, sub_graph, trend_data)
+
+                # 입력값을 0과 1 사이로 조정
+                real_score_D = torch.clamp(real_score_D, 0, 1)
+                fake_score_D = torch.clamp(fake_score_D, 0, 1)
 
                 real_loss = self.D_loss(real_score_D, valid)
                 fake_loss = self.D_loss(fake_score_D, fake)
@@ -89,6 +84,7 @@ class Trainer(object):
                 fake_sequence = torch.cat([recent_data, fake_data.unsqueeze(1)], dim=1)
 
                 fake_score = self.D(fake_sequence, sub_graph, trend_data)
+                fake_score = torch.clamp(fake_score, 0, 1)  # 입력값을 0과 1 사이로 조정
 
                 binary_loss = self.D_loss(fake_score, valid)
                 G_total = self.opt["lambda_G"] * mse_loss + binary_loss
@@ -106,10 +102,13 @@ class Trainer(object):
                             count += 1
 
                     acc = count / (self.opt["batch_size"] * 2)
-                    logging.info(
-                        "epoch:%d step:%d [D loss: %f D acc: %.2f] "
-                        "[G mse: %f G binary %f]" % (e, step, D_total.cpu(), acc * 100, mse_loss, binary_loss)
-                    )
+                    print(f"epoch:{e} step:{step} [D loss: {D_total.cpu():f} D acc: {acc*100:.2f}] " f"[G mse: {mse_loss:f} G binary {binary_loss:f}]")
 
-            torch.save(self.G, self.opt["save_path"] + "G_" + str(e) + ".pth")
-            torch.save(self.D, self.opt["save_path"] + "D_" + str(e) + ".pth")
+            # 저장 디렉토리 확인
+            save_path = self.opt["save_path"]
+            if not os.path.exists(save_path):
+                os.makedirs(save_path)
+
+            # 모델 저장
+            torch.save(self.G.state_dict(), os.path.join(save_path, f"G_{e}.pth"))
+            torch.save(self.D.state_dict(), os.path.join(save_path, f"D_{e}.pth"))
