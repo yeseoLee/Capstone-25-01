@@ -9,6 +9,22 @@ import torch.utils.data as data
 class data_loader(data.Dataset):
     def __init__(self, opt):
         self.opt = opt
+        self.dataset = opt["dataset"]
+        self.data_path = opt["data_path"]
+        self.timestamp = opt["timestamp"]
+        self.train_time = opt["train_time"]
+        self.recent_time = opt["recent_time"]
+        self.num_feature = opt["num_feature"]
+        self.time_feature = opt["time_feature"]
+        self.num_adj = opt["num_adj"]
+        self.num_layer = opt["num_layer"]
+        self.trend_time = opt["trend_time"]
+        self.batch_size = opt["batch_size"]
+        self.isTrain = opt["isTrain"]
+        self.use_node_subset = opt.get("use_node_subset", False)
+        self.node_ratio = opt.get("node_ratio", 0.1)
+        self.node_list = opt.get("node_list", None)
+
         # 로거 설정
         logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
         self.logger = logging.getLogger("STGAN-DataLoader")
@@ -118,6 +134,15 @@ class data_loader(data.Dataset):
         self.weight()
 
         self.length = self.node_num * self.time_num
+
+        # 노드 정보 파일 처리
+        if self.use_node_subset and opt.get("node_info_file"):
+            with open(opt["node_info_file"], "w") as f:
+                f.write(f"노드 서브셋 설정:\n")
+                if self.node_list:
+                    f.write(f"사용자 지정 노드 목록: {self.node_list}\n")
+                else:
+                    f.write(f"전체 노드의 {self.node_ratio*100:.1f}% 사용\n")
 
     def __getitem__(self, idx):
         index_t = idx // self.node_num + self.start_time
