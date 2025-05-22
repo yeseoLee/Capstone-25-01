@@ -183,3 +183,5 @@ cython_debug/
 /STGAN/datasets/
 /STGAN_custom/datasets/
 result.md
+
+/results/
