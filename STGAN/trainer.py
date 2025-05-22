@@ -1,4 +1,3 @@
-import logging
 import os
 
 from gan_model import Discriminator, Generator
