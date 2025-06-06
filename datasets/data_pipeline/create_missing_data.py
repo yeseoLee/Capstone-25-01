@@ -65,9 +65,10 @@ def create_missing_mask(  # noqa: C901
     end_idx = int(time_len * end_interval)
 
     if mask_type == "point":
+        pass
         # point 방식: 독립적인 결측치만 생성
-        p_fault = 0.0
-        p_noise = 0.25  # 기본값 증가
+        # p_fault = 0.0
+        # p_noise = 0.1  # 기본값 증가
 
     # 결함 (연속적인 결측치) 생성
     if p_fault > 0:

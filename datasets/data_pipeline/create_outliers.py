@@ -263,7 +263,7 @@ class ContextualOutlierGenerator(OutlierGenerator):
     맥락적 이상치 생성기 - 특정 맥락에서 부적절한 데이터 패턴 생성
     """
 
-    def __init__(self, data, time_features, seed=42, replace_ratio=0.05, start_interval=0.0, end_interval=1.0):
+    def __init__(self, data, time_features, seed=42, replace_ratio=0.05, start_interval=0.0, end_interval=1.0, min_deviation=0.2, max_deviation=0.5, p_outlier=0.005):
         """
         초기화
         Args:

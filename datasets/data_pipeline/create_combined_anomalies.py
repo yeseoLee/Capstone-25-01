@@ -12,7 +12,7 @@ STGAN 데이터셋에 결측치와 이상치를 동시에 생성하고 저장하
     --dataset_name: 데이터셋 이름 (현재는 'bay'만 지원)
     --output_dir: 출력 디렉토리 경로
     --scenario: 이상치 생성 시나리오 ('point', 'block', 'contextual')
-    --p_fault: 결함 확률 (연속적인 결측치를 생성하는 비율, 기본값: 0.1)
+    --p_fault: 결함 확률 (연속적인 결측치를 생성하는 비율, 기본값: 0.015)
     --p_noise: 잡음 확률 (독립적인 결측치를 생성하는 비율, 기본값: 0.1)
     --mask_type: 마스크 유형 ('block': 연속적 결측치, 'point': 독립적 결측치)
     --min_deviation: 최소 편차 (정규화된 값, 기본값: 0.2)
@@ -54,12 +54,13 @@ class CombinedAnomalyGenerator:
         data,
         time_features,
         scenario="point",
-        p_fault=0.1,
+        p_fault=0.0015,
         p_noise=0.1,
-        mask_type="block",
+        mask_type="point",
         min_deviation=0.2,
         max_deviation=0.5,
         p_outlier=0.1,
+        replace_ratio=0.1,
         start_interval=0.0,
         end_interval=1.0,
         seed=42,
@@ -89,6 +90,7 @@ class CombinedAnomalyGenerator:
         self.min_deviation = min_deviation
         self.max_deviation = max_deviation
         self.p_outlier = p_outlier
+        self.replace_ratio = replace_ratio
         self.start_interval = start_interval
         self.end_interval = end_interval
         self.seed = seed
@@ -302,8 +304,8 @@ def main(args):
                 {
                     "min_deviation": args.min_deviation,
                     "max_deviation": args.max_deviation,
-                    "min_duration": args.min_duration,
-                    "max_duration": args.max_duration,
+                    # "min_duration": args.min_duration,
+                    # "max_duration": args.max_duration,
                     "p_outlier": args.p_outlier,
                 }
             )
@@ -355,12 +357,12 @@ if __name__ == "__main__":
     )
 
     # 결측치 관련 파라미터
-    parser.add_argument("--p_fault", type=float, default=0.1, help="결함 확률 (연속적인 결측치를 생성하는 비율)")
+    parser.add_argument("--p_fault", type=float, default=0.0015, help="결함 확률 (연속적인 결측치를 생성하는 비율)")
     parser.add_argument("--p_noise", type=float, default=0.1, help="잡음 확률 (독립적인 결측치를 생성하는 비율)")
     parser.add_argument(
         "--mask_type",
         type=str,
-        default="block",
+        default="point",
         choices=["block", "point"],
         help="마스크 유형 (block: 연속적 결측치, point: 독립적 결측치)",
     )
